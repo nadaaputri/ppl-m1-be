@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/usecase/repository/queries"
+    schema: "prisma/migrations/20261024080756_init_users_divisions_permissions/migration.sql"
+    gen:
+      go:
+        package: "sqlc"
+        out: "internal/usecase/repository/sqlc"
+        sql_package: "database/sql"
+        overrides:
+          - db_type: "uuid"
+            go_type: "string"

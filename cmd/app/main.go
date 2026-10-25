@@ -22,7 +22,7 @@ func main() {
 
 	log.Println("Koneksi PostgreSQL berhasil")
 
-	router := v1.NewRouter(db)
+	router := v1.NewRouter(db, cfg)
 
 	address := ":" + cfg.AppPort
 	log.Printf("Server berjalan di http://localhost%s", address)

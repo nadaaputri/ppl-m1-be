@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"net/http"
 
+	"ppl-m1-be/config"
+
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(db *sql.DB) *gin.Engine {
+func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
@@ -30,6 +32,8 @@ func NewRouter(db *sql.DB) *gin.Engine {
 			"database": "connected",
 		})
 	})
+
+	mountAuth(router.Group("/api/v1"), db, cfg)
 
 	return router
 }
