@@ -1,11 +1,38 @@
 package httpserver
 
-import "github.com/gin-gonic/gin"
+import (
+	"net/http"
 
-func Success(c *gin.Context, status int, message string, data any) {
-	c.JSON(status, gin.H{"success": true, "message": message, "data": data})
+	"github.com/gin-gonic/gin"
+)
+
+const (
+	CodeBadRequest         = "BAD_REQUEST"
+	CodeInvalidCredentials = "INVALID_CREDENTIALS"
+	CodeUnauthenticated    = "UNAUTHENTICATED"
+	CodeForbidden          = "FORBIDDEN"
+	CodeValidation         = "VALIDATION_ERROR"
+	CodeInternal           = "INTERNAL_ERROR"
+)
+
+func Success(c *gin.Context, status int, data any) {
+	c.JSON(status, gin.H{"success": true, "data": data})
 }
 
-func Fail(c *gin.Context, status int, message string) {
-	c.JSON(status, gin.H{"success": false, "message": message, "data": nil})
+func Fail(c *gin.Context, status int, code, message string) {
+	c.JSON(status, gin.H{
+		"success": false,
+		"error":   gin.H{"code": code, "message": message},
+	})
+}
+
+func FailFields(c *gin.Context, message string, fields map[string]string) {
+	c.JSON(http.StatusUnprocessableEntity, gin.H{
+		"success": false,
+		"error": gin.H{
+			"code":    CodeValidation,
+			"message": message,
+			"fields":  fields,
+		},
+	})
 }

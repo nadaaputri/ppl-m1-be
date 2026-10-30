@@ -7,7 +7,7 @@ import (
 
 type Event struct {
 	Type   string
-	UserID string
+	UserID int32
 	Email  string
 	IP     string
 	Detail string
