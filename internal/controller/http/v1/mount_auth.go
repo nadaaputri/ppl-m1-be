@@ -16,5 +16,5 @@ import (
 func mountAuth(api *gin.RouterGroup, db *sql.DB, cfg config.Config) {
 	tokens := utils.NewTokenMaker(cfg.JWTSecret, cfg.AppName, cfg.JWTExpiresIn)
 	uc := auth_usecase.New(sqlc.New(db), tokens, audit_usecase.NewStdLogger())
-	auth_route.Mount(api, uc)
+	auth_route.Mount(api, uc, tokens)
 }

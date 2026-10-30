@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ppl-m1-be/internal/usecase/auth_usecase"
+	"ppl-m1-be/middleware"
 	"ppl-m1-be/pkg/httpserver"
 )
 
@@ -41,4 +42,13 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 	}
 	slog.Error("login gagal", "error", err)
 	httpserver.Fail(c, http.StatusInternalServerError, httpserver.CodeInternal, "Terjadi kesalahan pada server")
+}
+
+func (h *Handler) Me(c *gin.Context) {
+	claims := middleware.GetClaims(c)
+	httpserver.Success(c, http.StatusOK, toMeResponse(claims))
+}
+
+func (h *Handler) Logout(c *gin.Context) {
+	httpserver.Success(c, http.StatusOK, nil)
 }
