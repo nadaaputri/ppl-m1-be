@@ -41,13 +41,13 @@ func (u *Usecase) findUser(ctx context.Context, email string) (sqlc.GetUserByEma
 
 func (u *Usecase) failReason(user sqlc.GetUserByEmailRow, password string) string {
 	hash := user.PasswordHash
-	if user.ID == "" {
+	if user.ID == 0 {
 		hash = u.dummyHash
 	}
 	wrongPassword := utils.CheckPassword(hash, password) != nil
 
 	switch {
-	case user.ID == "":
+	case user.ID == 0:
 		return "email tidak terdaftar"
 	case wrongPassword:
 		return "sandi salah"
@@ -58,7 +58,7 @@ func (u *Usecase) failReason(user sqlc.GetUserByEmailRow, password string) strin
 }
 
 func (u *Usecase) issueToken(ctx context.Context, user sqlc.GetUserByEmailRow, ip string) (LoginResult, error) {
-	token, err := u.tokens.Generate(user.ID)
+	token, err := u.tokens.Generate(toClaims(user))
 	if err != nil {
 		return LoginResult{}, err
 	}
@@ -67,13 +67,5 @@ func (u *Usecase) issueToken(ctx context.Context, user sqlc.GetUserByEmailRow, i
 	return LoginResult{
 		AccessToken: token,
 		ExpiresIn:   int(u.tokens.TTL().Seconds()),
-		User:        toUserInfo(user),
 	}, nil
-}
-
-func toUserInfo(u sqlc.GetUserByEmailRow) UserInfo {
-	return UserInfo{
-		ID: u.ID, Name: u.FullName, Email: u.Email, Role: u.RoleName,
-		DivisionID: u.DivisionID, DivisionName: u.DivisionName,
-	}
 }

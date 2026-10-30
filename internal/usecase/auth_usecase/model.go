@@ -19,17 +19,7 @@ type LoginInput struct {
 	IP       string
 }
 
-type UserInfo struct {
-	ID           string
-	Name         string
-	Email        string
-	Role         string
-	DivisionID   string
-	DivisionName string
-}
-
 type LoginResult struct {
 	AccessToken string
 	ExpiresIn   int
-	User        UserInfo
 }
