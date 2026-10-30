@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getUserByEmail = `-- name: GetUserByEmail :one
@@ -15,9 +16,9 @@ SELECT u.id,
        u.password_hash,
        u.full_name,
        u.is_active,
+       u.unit_usaha_id,
        r.name AS role_name,
-       COALESCE(d.id::text, '')::text AS division_id,
-       COALESCE(d.name, '') AS division_name
+       d.name AS division_name
 FROM users u
 JOIN roles r ON r.id = u.role_id
 LEFT JOIN divisions d ON d.id = u.division_id
@@ -25,14 +26,14 @@ WHERE u.email = $1
 `
 
 type GetUserByEmailRow struct {
-	ID           string
+	ID           int32
 	Email        string
 	PasswordHash string
 	FullName     string
 	IsActive     bool
+	UnitUsahaID  sql.NullInt32
 	RoleName     string
-	DivisionID   string
-	DivisionName string
+	DivisionName sql.NullString
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -44,8 +45,8 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.PasswordHash,
 		&i.FullName,
 		&i.IsActive,
+		&i.UnitUsahaID,
 		&i.RoleName,
-		&i.DivisionID,
 		&i.DivisionName,
 	)
 	return i, err

@@ -5,42 +5,57 @@
 package sqlc
 
 import (
+	"database/sql"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 )
 
+type AuditLog struct {
+	ID           int32
+	UserID       sql.NullInt32
+	SourceModule string
+	Action       string
+	Entity       string
+	EntityID     sql.NullString
+	OldValue     pqtype.NullRawMessage
+	NewValue     pqtype.NullRawMessage
+	IpAddress    sql.NullString
+	CreatedAt    time.Time
+}
+
 type Division struct {
-	ID        string
 	Name      string
 	IsActive  bool
 	CreatedAt time.Time
+	ID        int32
 }
 
 type Permission struct {
-	ID          string
 	Code        string
 	Description string
+	ID          int32
 }
 
 type Role struct {
-	ID   string
 	Name string
+	ID   int32
 }
 
 type RolePermission struct {
-	RoleID       string
-	PermissionID string
+	RoleID       int32
+	PermissionID int32
 }
 
 type User struct {
-	ID           string
 	Email        string
 	PasswordHash string
 	FullName     string
-	DivisionID   uuid.NullUUID
-	RoleID       string
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	UnitUsahaID  sql.NullInt32
+	ID           int32
+	DivisionID   sql.NullInt32
+	RoleID       int32
 }
