@@ -33,7 +33,7 @@ func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 		})
 	})
 
-	mountAuth(router.Group("/api/v1"), db, cfg)
+	mountAuth(router.Group("/api/m1/v1"), db, cfg)
 
 	return router
 }

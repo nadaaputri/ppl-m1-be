@@ -8,6 +8,6 @@ import (
 
 func Mount(rg *gin.RouterGroup, uc *auth_usecase.Usecase) {
 	handler := &Handler{uc: uc}
-	group := rg.Group("/auth")
-	group.POST("/login", handler.Login)
+	group := rg.Group("/auth/sessions")
+	group.POST("", handler.Login)
 }

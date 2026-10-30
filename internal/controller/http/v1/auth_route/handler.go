@@ -17,8 +17,12 @@ type Handler struct {
 
 func (h *Handler) Login(c *gin.Context) {
 	var req loginRequest
-	if err := c.ShouldBindJSON(&req); err != nil || len(req.Password) > maxPasswordBytes {
-		httpserver.Fail(c, http.StatusBadRequest, "Data yang dikirim tidak valid")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+	if len(req.Password) > maxPasswordBytes {
+		httpserver.FailFields(c, msgValidation, map[string]string{"password": "Kata sandi terlalu panjang"})
 		return
 	}
 
@@ -27,14 +31,14 @@ func (h *Handler) Login(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	httpserver.Success(c, http.StatusOK, "Login berhasil", toLoginResponse(result))
+	httpserver.Success(c, http.StatusOK, toLoginResponse(result))
 }
 
 func (h *Handler) writeError(c *gin.Context, err error) {
 	if errors.Is(err, auth_usecase.ErrInvalidCredentials) {
-		httpserver.Fail(c, http.StatusUnauthorized, "Email atau kata sandi salah")
+		httpserver.Fail(c, http.StatusUnauthorized, httpserver.CodeInvalidCredentials, "Email atau kata sandi salah")
 		return
 	}
 	slog.Error("login gagal", "error", err)
-	httpserver.Fail(c, http.StatusInternalServerError, "Terjadi kesalahan pada server")
+	httpserver.Fail(c, http.StatusInternalServerError, httpserver.CodeInternal, "Terjadi kesalahan pada server")
 }
