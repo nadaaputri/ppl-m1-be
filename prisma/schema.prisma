@@ -44,6 +44,7 @@ model User {
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
   division     Division? @relation(fields: [divisionId], references: [id])
   role         Role      @relation(fields: [roleId], references: [id])
+  auditLogs    AuditLog[]
 
   @@map("users")
 }
@@ -65,4 +66,22 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int?     @map("user_id")
+  sourceModule String   @map("source_module")
+  action       String
+  entity       String
+  entityId     String?  @map("entity_id")
+  oldValue     Json?    @map("old_value")
+  newValue     Json?    @map("new_value")
+  ipAddress    String?  @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User?    @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([userId])
+  @@map("audit_logs")
 }
