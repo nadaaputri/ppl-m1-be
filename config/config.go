@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -24,9 +25,9 @@ type Config struct {
 }
 
 func Load() (Config, error) {
-	if err := godotenv.Load(); err != nil {
-		return Config{}, fmt.Errorf("gagal membaca file .env: %w", err)
-	}
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+	return Config{}, fmt.Errorf("gagal membaca file .env: %w", err)
+}
 
 	cfg := Config{
 		AppName: os.Getenv("APP_NAME"),
