@@ -6,7 +6,13 @@ import { PrismaClient } from "../generated/prisma/client";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
-const ROLES = ["administrator", "manajer", "partner", "customer"];
+// Peran bawaan platform (partner_id = NULL). code dipakai di token, name untuk tampilan.
+const ROLES = [
+  { code: "administrator", name: "Administrator" },
+  { code: "manajer", name: "Manajer" },
+  { code: "partner", name: "Partner" },
+  { code: "customer", name: "Customer" },
+];
 
 async function main() {
   const email = process.env.ADMIN_EMAIL;
@@ -25,16 +31,18 @@ async function main() {
     throw new Error("Kata sandi admin harus minimal 8 karakter, berisi huruf dan angka, dan tidak sama dengan email");
   }
 
-  for (const roleName of ROLES) {
-    await prisma.role.upsert({
-      where: { name: roleName },
-      update: {},
-      create: { name: roleName },
+  // upsert tidak bisa dipakai: unik (partner_id, code) tidak menerima partner_id NULL di klausa where
+  for (const role of ROLES) {
+    const exists = await prisma.role.findFirst({
+      where: { code: role.code, partnerId: null },
     });
+    if (!exists) {
+      await prisma.role.create({ data: { ...role, partnerId: null } });
+    }
   }
 
-  const adminRole = await prisma.role.findUniqueOrThrow({
-    where: { name: "administrator" },
+  const adminRole = await prisma.role.findFirstOrThrow({
+    where: { code: "administrator", partnerId: null },
   });
 
   // cost 10 = bcrypt.DefaultCost di backend Go
@@ -46,8 +54,9 @@ async function main() {
     create: {
       email,
       passwordHash,
-      fullName: name,
+      name,
       roleId: adminRole.id,
+      isSuperAdmin: true, // staf platform Araya (partner_id NULL)
       isActive: true,
     },
   });

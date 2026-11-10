@@ -14,74 +14,119 @@ datasource db {
 
 model Division {
   id        Int      @id @default(autoincrement())
-  name      String   @unique
+  partnerId Int?     @map("partner_id")
+  code      String   @db.VarChar(50)
+  name      String   @db.VarChar(100)
   isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  users     User[]
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  users               User[]
+  divisionPermissions DivisionPermission[]
+
+  // Unik per partner. Baris dengan partner_id NULL dijaga oleh partial unique
+  // index "divisions_code_platform_key" (ada di migrasi, tidak bisa ditulis di sini).
+  @@unique([partnerId, code])
   @@map("divisions")
 }
 
 model Role {
-  id              Int              @id @default(autoincrement())
-  name            String           @unique
+  id          Int      @id @default(autoincrement())
+  partnerId   Int?     @map("partner_id")
+  code        String   @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
   users           User[]
   rolePermissions RolePermission[]
 
+  // Partial unique index "roles_code_platform_key" ada di migrasi.
+  @@unique([partnerId, code])
   @@map("roles")
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  fullName     String    @map("full_name")
-  divisionId   Int?      @map("division_id")
-  roleId       Int       @map("role_id")
-  unitUsahaId  Int?      @map("unit_usaha_id")
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
-  division     Division? @relation(fields: [divisionId], references: [id])
-  role         Role      @relation(fields: [roleId], references: [id])
+  id            Int       @id @default(autoincrement())
+  partnerId     Int?      @map("partner_id")
+  name          String    @db.VarChar(150)
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String    @map("password_hash")
+  roleId        Int?      @map("role_id")
+  divisionId    Int?      @map("division_id")
+  isSuperAdmin  Boolean   @default(false) @map("is_super_admin")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdById   Int?      @map("created_by")
+  unitUsahaId   Int?      @map("unit_usaha_id")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(3)
+
+  role         Role?     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  division     Division? @relation(fields: [divisionId], references: [id], onDelete: Restrict)
+  createdBy    User?     @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[]    @relation("UserCreator")
   auditLogs    AuditLog[]
 
+  @@index([partnerId])
   @@map("users")
 }
 
 model Permission {
-  id              Int              @id @default(autoincrement())
-  code            String           @unique
-  description     String
-  rolePermissions RolePermission[]
+  code        String @id @db.VarChar(100)
+  module      String @db.VarChar(20)
+  description String
+
+  rolePermissions     RolePermission[]
+  divisionPermissions DivisionPermission[]
 
   @@map("permissions")
 }
 
 model RolePermission {
-  roleId       Int        @map("role_id")
-  permissionId Int        @map("permission_id")
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  roleId         Int    @map("role_id")
+  permissionCode String @map("permission_code") @db.VarChar(100)
 
-  @@id([roleId, permissionId])
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+
+  @@id([roleId, permissionCode])
   @@map("role_permissions")
 }
 
+model DivisionPermission {
+  divisionId     Int      @map("division_id")
+  permissionCode String   @map("permission_code") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  division   Division   @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+
+  @@id([divisionId, permissionCode])
+  @@map("division_permissions")
+}
+
 model AuditLog {
-  id           Int      @id @default(autoincrement())
-  userId       Int?     @map("user_id")
-  sourceModule String   @map("source_module")
-  action       String
-  entity       String
-  entityId     String?  @map("entity_id")
-  oldValue     Json?    @map("old_value")
-  newValue     Json?    @map("new_value")
-  ipAddress    String?  @map("ip_address")
-  createdAt    DateTime @default(now()) @map("created_at")
-  user         User?    @relation(fields: [userId], references: [id])
+  id         Int      @id @default(autoincrement())
+  partnerId  Int?     @map("partner_id")
+  userId     Int?     @map("user_id")
+  action     String   @db.VarChar(80)
+  resource   String   @db.VarChar(50)
+  resourceId Int?     @map("resource_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  actorName  String?  @map("actor_name") @db.VarChar(150)
+  actorEmail String?  @map("actor_email") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
   @@index([userId])
+  @@index([partnerId, createdAt])
+  @@index([resource, resourceId])
   @@map("audit_logs")
 }
