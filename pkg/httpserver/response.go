@@ -7,17 +7,18 @@ import (
 )
 
 const (
-	CodeBadRequest         = "BAD_REQUEST"
-	CodeInvalidCredentials = "INVALID_CREDENTIALS"
-	CodeUnauthenticated    = "UNAUTHENTICATED"
-	CodeForbidden          = "FORBIDDEN"
-	CodeValidation         = "VALIDATION_ERROR"
-	CodeInternal           = "INTERNAL_ERROR"
-	CodeEmailDuplicate     = "EMAIL_DUPLICATE"
-	CodeNotFound         = "NOT_FOUND"
-	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
-	CodeInvalidParameter     = "INVALID_PARAMETER"
+	CodeBadRequest            = "BAD_REQUEST"
+	CodeInvalidCredentials    = "INVALID_CREDENTIALS"
+	CodeUnauthenticated       = "UNAUTHENTICATED"
+	CodeForbidden             = "FORBIDDEN"
+	CodeValidation            = "VALIDATION_ERROR"
+	CodeInternal              = "INTERNAL_ERROR"
+	CodeEmailDuplicate        = "EMAIL_DUPLICATE"
+	CodeNotFound              = "NOT_FOUND"
+	CodeMethodNotAllowed      = "METHOD_NOT_ALLOWED"
+	CodeInvalidParameter      = "INVALID_PARAMETER"
 	CodeDivisionCodeDuplicate = "DIVISION_CODE_DUPLICATE"
+	CodeRoleCodeDuplicate     = "ROLE_CODE_DUPLICATE"
 )
 
 func Success(c *gin.Context, status int, data any) {

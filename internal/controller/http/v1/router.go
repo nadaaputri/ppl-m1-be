@@ -19,13 +19,13 @@ func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 	router.HandleMethodNotAllowed = true
 	router.NoRoute(notFound)
 	router.NoMethod(methodNotAllowed)
-	
+
 	router.GET("/openapi.yaml", func(c *gin.Context) {
 		c.Data(http.StatusOK, "application/yaml; charset=utf-8", apidocs.OpenAPI)
 	})
-	
+
 	router.GET("/api/m1/v1/docs", docsHandler)
-	
+
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",
@@ -51,7 +51,8 @@ func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 	api := router.Group("/api/m1/v1")
 	mountAuth(api, db, tokens)
 	mountDivision(api, db, tokens)
-	mountUser(api, db)
+	mountRole(api, db, tokens)
+	mountUser(api, db, tokens)
 
 	return router
 }

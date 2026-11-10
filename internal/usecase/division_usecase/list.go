@@ -2,13 +2,13 @@ package division_usecase
 
 import (
 	"context"
-	"database/sql"
 
 	"ppl-m1-be/internal/usecase/repository/sqlc"
+	"ppl-m1-be/internal/usecase/utils"
 )
 
 func (u *Usecase) List(ctx context.Context, in ListInput) (ListResult, error) {
-	partner, active := toNullInt32(in.PartnerID), toNullBool(in.IsActive)
+	partner, active := utils.NullInt32(in.PartnerID), utils.NullBool(in.IsActive)
 	total, err := u.store.CountDivisions(ctx, sqlc.CountDivisionsParams{PartnerID: partner, IsActive: active})
 	if err != nil {
 		return ListResult{}, err
@@ -25,20 +25,6 @@ func (u *Usecase) List(ctx context.Context, in ListInput) (ListResult, error) {
 		items = append(items, toDivision(row))
 	}
 	return ListResult{Items: items, Total: int(total)}, nil
-}
-
-func toNullInt32(v *int32) sql.NullInt32 {
-	if v == nil {
-		return sql.NullInt32{}
-	}
-	return sql.NullInt32{Int32: *v, Valid: true}
-}
-
-func toNullBool(v *bool) sql.NullBool {
-	if v == nil {
-		return sql.NullBool{}
-	}
-	return sql.NullBool{Bool: *v, Valid: true}
 }
 
 func toDivision(d sqlc.Division) Division {
