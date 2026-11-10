@@ -14,6 +14,8 @@ const (
 	CodeValidation         = "VALIDATION_ERROR"
 	CodeInternal           = "INTERNAL_ERROR"
 	CodeEmailDuplicate     = "EMAIL_DUPLICATE"
+	CodeNotFound         = "NOT_FOUND"
+	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
 )
 
 func Success(c *gin.Context, status int, data any) {

@@ -8,11 +8,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ppl-m1-be/middleware"
+
 	apidocs "ppl-m1-be/docs"
 )
 
 func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger(), gin.CustomRecovery(recoverPanic), middleware.CORS(cfg.CORSAllowedOrigins))
+	router.HandleMethodNotAllowed = true
+	router.NoRoute(notFound)
+	router.NoMethod(methodNotAllowed)
 	
 	router.GET("/openapi.yaml", func(c *gin.Context) {
 		c.Data(http.StatusOK, "application/yaml; charset=utf-8", apidocs.OpenAPI)

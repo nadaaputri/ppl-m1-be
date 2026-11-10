@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -22,6 +23,7 @@ type Config struct {
 	DBSSLMode    string
 	JWTSecret    string
 	JWTExpiresIn time.Duration
+	CORSAllowedOrigins []string
 }
 
 func Load() (Config, error) {
@@ -57,6 +59,8 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	loadCORS(&cfg)
+
 	return cfg, nil
 }
 
@@ -73,4 +77,14 @@ func loadJWT(cfg *Config) error {
 
 	cfg.JWTExpiresIn = ttl
 	return nil
+}
+
+func loadCORS(cfg *Config) {
+	raw := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if raw == "" {
+		raw = "*"
+	}
+	for _, origin := range strings.Split(raw, ",") {
+		cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, strings.TrimSpace(origin))
+	}
 }
