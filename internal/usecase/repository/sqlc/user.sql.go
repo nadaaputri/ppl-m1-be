@@ -10,6 +10,54 @@ import (
 	"database/sql"
 )
 
+const createAccount = `-- name: CreateAccount :one
+INSERT INTO users (partner_id, name, email, password_hash, role_id, division_id, unit_usaha_id, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING email, password_hash, name, is_active, created_at, updated_at, unit_usaha_id, id, division_id, role_id, partner_id, is_super_admin, created_by, deactivated_at
+`
+
+type CreateAccountParams struct {
+	PartnerID    sql.NullInt32
+	Name         string
+	Email        string
+	PasswordHash string
+	RoleID       sql.NullInt32
+	DivisionID   sql.NullInt32
+	UnitUsahaID  sql.NullInt32
+	CreatedBy    sql.NullInt32
+}
+
+func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createAccount,
+		arg.PartnerID,
+		arg.Name,
+		arg.Email,
+		arg.PasswordHash,
+		arg.RoleID,
+		arg.DivisionID,
+		arg.UnitUsahaID,
+		arg.CreatedBy,
+	)
+	var i User
+	err := row.Scan(
+		&i.Email,
+		&i.PasswordHash,
+		&i.Name,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UnitUsahaID,
+		&i.ID,
+		&i.DivisionID,
+		&i.RoleID,
+		&i.PartnerID,
+		&i.IsSuperAdmin,
+		&i.CreatedBy,
+		&i.DeactivatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, name, role_id)
 VALUES ($1, $2, $3, $4)
@@ -39,6 +87,46 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	var i CreateUserRow
 	err := row.Scan(&i.ID, &i.Email, &i.Name)
 	return i, err
+}
+
+const getPartnerDivisionID = `-- name: GetPartnerDivisionID :one
+SELECT id
+FROM divisions
+WHERE partner_id = $1::int
+  AND code = $2::text
+  AND is_active
+`
+
+type GetPartnerDivisionIDParams struct {
+	PartnerID int32
+	Code      string
+}
+
+func (q *Queries) GetPartnerDivisionID(ctx context.Context, arg GetPartnerDivisionIDParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getPartnerDivisionID, arg.PartnerID, arg.Code)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getPartnerRoleID = `-- name: GetPartnerRoleID :one
+SELECT id
+FROM roles
+WHERE partner_id = $1::int
+  AND code = $2::text
+  AND is_active
+`
+
+type GetPartnerRoleIDParams struct {
+	PartnerID int32
+	Code      string
+}
+
+func (q *Queries) GetPartnerRoleID(ctx context.Context, arg GetPartnerRoleIDParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getPartnerRoleID, arg.PartnerID, arg.Code)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getRoleIDByName = `-- name: GetRoleIDByName :one

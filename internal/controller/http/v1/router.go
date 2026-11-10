@@ -52,7 +52,7 @@ func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 	mountAuth(api, db, tokens)
 	mountDivision(api, db, tokens)
 	mountRole(api, db, tokens)
-	mountUser(api, db)
+	mountUser(api, db, tokens)
 
 	return router
 }

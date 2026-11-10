@@ -15,3 +15,10 @@ func NullBool(v *bool) sql.NullBool {
 	}
 	return sql.NullBool{Bool: *v, Valid: true}
 }
+
+func Int32Ptr(n sql.NullInt32) *int32 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int32
+}

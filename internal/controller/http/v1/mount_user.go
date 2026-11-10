@@ -9,9 +9,10 @@ import (
 	"ppl-m1-be/internal/usecase/audit_usecase"
 	"ppl-m1-be/internal/usecase/repository/sqlc"
 	"ppl-m1-be/internal/usecase/user_usecase"
+	"ppl-m1-be/internal/usecase/utils"
 )
 
-func mountUser(api *gin.RouterGroup, db *sql.DB) {
+func mountUser(api *gin.RouterGroup, db *sql.DB, tokens *utils.TokenMaker) {
 	uc := user_usecase.New(sqlc.New(db), audit_usecase.NewStdLogger())
-	user_route.Mount(api, uc)
+	user_route.Mount(api, uc, tokens)
 }
