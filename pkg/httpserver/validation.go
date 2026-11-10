@@ -35,6 +35,8 @@ func fieldMessage(fe validator.FieldError) string {
 		return "Format email tidak valid"
 	case "min":
 		return fmt.Sprintf("Minimal %s karakter", fe.Param())
+	case "max":
+		return fmt.Sprintf("Maksimal %s karakter", fe.Param())
 	}
 	return "Isian ini wajib diisi"
 }

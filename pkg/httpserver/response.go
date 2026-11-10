@@ -16,6 +16,8 @@ const (
 	CodeEmailDuplicate     = "EMAIL_DUPLICATE"
 	CodeNotFound         = "NOT_FOUND"
 	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
+	CodeInvalidParameter     = "INVALID_PARAMETER"
+	CodeDivisionCodeDuplicate = "DIVISION_CODE_DUPLICATE"
 )
 
 func Success(c *gin.Context, status int, data any) {
