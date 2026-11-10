@@ -7,36 +7,37 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password_hash, full_name, role_id)
+INSERT INTO users (email, password_hash, name, role_id)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, full_name
+RETURNING id, email, name
 `
 
 type CreateUserParams struct {
 	Email        string
 	PasswordHash string
-	FullName     string
-	RoleID       int32
+	Name         string
+	RoleID       sql.NullInt32
 }
 
 type CreateUserRow struct {
-	ID       int32
-	Email    string
-	FullName string
+	ID    int32
+	Email string
+	Name  string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
 		arg.Email,
 		arg.PasswordHash,
-		arg.FullName,
+		arg.Name,
 		arg.RoleID,
 	)
 	var i CreateUserRow
-	err := row.Scan(&i.ID, &i.Email, &i.FullName)
+	err := row.Scan(&i.ID, &i.Email, &i.Name)
 	return i, err
 }
 

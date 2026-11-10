@@ -14,13 +14,15 @@ const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT u.id,
        u.email,
        u.password_hash,
-       u.full_name,
+       u.name,
        u.is_active,
+       u.is_super_admin,
+       u.partner_id,
        u.unit_usaha_id,
-       r.name AS role_name,
-       d.name AS division_name
+       r.code AS role_code,
+       d.code AS division_code
 FROM users u
-JOIN roles r ON r.id = u.role_id
+LEFT JOIN roles r ON r.id = u.role_id
 LEFT JOIN divisions d ON d.id = u.division_id
 WHERE u.email = $1
 `
@@ -29,11 +31,13 @@ type GetUserByEmailRow struct {
 	ID           int32
 	Email        string
 	PasswordHash string
-	FullName     string
+	Name         string
 	IsActive     bool
+	IsSuperAdmin bool
+	PartnerID    sql.NullInt32
 	UnitUsahaID  sql.NullInt32
-	RoleName     string
-	DivisionName sql.NullString
+	RoleCode     sql.NullString
+	DivisionCode sql.NullString
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -43,11 +47,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.ID,
 		&i.Email,
 		&i.PasswordHash,
-		&i.FullName,
+		&i.Name,
 		&i.IsActive,
+		&i.IsSuperAdmin,
+		&i.PartnerID,
 		&i.UnitUsahaID,
-		&i.RoleName,
-		&i.DivisionName,
+		&i.RoleCode,
+		&i.DivisionCode,
 	)
 	return i, err
 }

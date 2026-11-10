@@ -45,8 +45,8 @@ func (u *Usecase) createUser(ctx context.Context, in RegisterInput, hash string,
 	user, err := u.store.CreateUser(ctx, sqlc.CreateUserParams{
 		Email:        strings.ToLower(strings.TrimSpace(in.Email)),
 		PasswordHash: hash,
-		FullName:     strings.TrimSpace(in.Name),
-		RoleID:       roleID,
+		Name:         strings.TrimSpace(in.Name),
+		RoleID:       sql.NullInt32{Int32: roleID, Valid: true},
 	})
 	if isUniqueViolation(err) {
 		return sqlc.CreateUserRow{}, ErrEmailTaken
@@ -62,7 +62,7 @@ func isUniqueViolation(err error) bool {
 func toRegisterResult(u sqlc.CreateUserRow) RegisterResult {
 	return RegisterResult{
 		UserID: u.ID,
-		Name:   u.FullName,
+		Name:   u.Name,
 		Email:  u.Email,
 		Role:   strings.ToLower(customerRoleName),
 	}

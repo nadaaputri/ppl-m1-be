@@ -12,16 +12,18 @@ import (
 )
 
 type AuditLog struct {
-	ID           int32
-	UserID       sql.NullInt32
-	SourceModule string
-	Action       string
-	Entity       string
-	EntityID     sql.NullString
-	OldValue     pqtype.NullRawMessage
-	NewValue     pqtype.NullRawMessage
-	IpAddress    sql.NullString
-	CreatedAt    time.Time
+	ID         int32
+	UserID     sql.NullInt32
+	Action     string
+	Resource   string
+	ResourceID sql.NullInt32
+	OldValue   pqtype.NullRawMessage
+	NewValue   pqtype.NullRawMessage
+	IpAddress  sql.NullString
+	CreatedAt  time.Time
+	PartnerID  sql.NullInt32
+	ActorName  sql.NullString
+	ActorEmail sql.NullString
 }
 
 type Division struct {
@@ -29,33 +31,52 @@ type Division struct {
 	IsActive  bool
 	CreatedAt time.Time
 	ID        int32
+	Code      string
+	PartnerID sql.NullInt32
+	UpdatedAt time.Time
+}
+
+type DivisionPermission struct {
+	DivisionID     int32
+	PermissionCode string
+	CreatedAt      time.Time
 }
 
 type Permission struct {
 	Code        string
+	Module      string
 	Description string
-	ID          int32
 }
 
 type Role struct {
-	Name string
-	ID   int32
+	Name        string
+	ID          int32
+	Code        string
+	Description sql.NullString
+	IsActive    bool
+	PartnerID   sql.NullInt32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type RolePermission struct {
-	RoleID       int32
-	PermissionID int32
+	RoleID         int32
+	PermissionCode string
 }
 
 type User struct {
-	Email        string
-	PasswordHash string
-	FullName     string
-	IsActive     bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	UnitUsahaID  sql.NullInt32
-	ID           int32
-	DivisionID   sql.NullInt32
-	RoleID       int32
+	Email         string
+	PasswordHash  string
+	Name          string
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	UnitUsahaID   sql.NullInt32
+	ID            int32
+	DivisionID    sql.NullInt32
+	RoleID        sql.NullInt32
+	PartnerID     sql.NullInt32
+	IsSuperAdmin  bool
+	CreatedBy     sql.NullInt32
+	DeactivatedAt sql.NullTime
 }

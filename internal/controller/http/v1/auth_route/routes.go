@@ -12,9 +12,7 @@ func Mount(rg *gin.RouterGroup, uc *auth_usecase.Usecase, tokens *utils.TokenMak
 	handler := &Handler{uc: uc}
 	protected := middleware.Authenticate(tokens)
 
-	sessions := rg.Group("/auth/sessions")
-	sessions.POST("", handler.Login)
-	sessions.POST("/logout", protected, handler.Logout)
-
+	rg.POST("/auth/login", handler.Login)
+	rg.POST("/auth/sessions/logout", protected, handler.Logout)
 	rg.GET("/me", protected, handler.Me)
 }

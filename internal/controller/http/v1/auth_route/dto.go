@@ -19,20 +19,24 @@ type loginResponse struct {
 }
 
 type meResponse struct {
-	UserID      int32   `json:"user_id"`
-	Name        string  `json:"name"`
-	Role        string  `json:"role"`
-	Division    *string `json:"division"`
-	UnitUsahaID *int32  `json:"unit_usaha_id"`
+	UserID       int32   `json:"user_id"`
+	Name         string  `json:"name"`
+	Role         string  `json:"role"`
+	Division     *string `json:"division"`
+	PartnerID    *int32  `json:"partner_id"`
+	UnitUsahaID  *int32  `json:"unit_usaha_id"`
+	IsSuperAdmin bool    `json:"is_super_admin"`
 }
 
 func toMeResponse(c *utils.Claims) meResponse {
 	return meResponse{
-		UserID:      c.UserID,
-		Name:        c.Name,
-		Role:        c.Role,
-		Division:    c.Division,
-		UnitUsahaID: c.UnitUsahaID,
+		UserID:       c.UserID,
+		Name:         c.Name,
+		Role:         c.Role,
+		Division:     c.Division,
+		PartnerID:    c.PartnerID,
+		UnitUsahaID:  c.UnitUsahaID,
+		IsSuperAdmin: c.IsSuperAdmin,
 	}
 }
 

@@ -7,11 +7,13 @@ import (
 )
 
 type Claims struct {
-	UserID      int32   `json:"user_id"`
-	Name        string  `json:"name"`
-	Role        string  `json:"role"`
-	Division    *string `json:"division"`
-	UnitUsahaID *int32  `json:"unit_usaha_id"`
+	UserID       int32   `json:"user_id"`
+	Name         string  `json:"name"`
+	Role         string  `json:"role"`
+	Division     *string `json:"division"`
+	PartnerID    *int32  `json:"partner_id"`
+	UnitUsahaID  *int32  `json:"unit_usaha_id"`
+	IsSuperAdmin bool    `json:"is_super_admin"`
 	jwt.RegisteredClaims
 }
 
