@@ -12,6 +12,7 @@ import (
 )
 
 const claimsKey = "claims"
+const RolePartner = "partner"
 
 func Authenticate(tokens *utils.TokenMaker) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -32,7 +33,22 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 			unauthenticated(c)
 			return
 		}
-		if !slices.Contains(roles, claims.Role) {
+		if !claims.IsSuperAdmin && !slices.Contains(roles, claims.Role) {
+			forbidden(c)
+			return
+		}
+		c.Next()
+	}
+}
+
+func RequireDivision(divisions ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims := GetClaims(c)
+		if claims == nil {
+			unauthenticated(c)
+			return
+		}
+		if !claims.IsSuperAdmin && (claims.Division == nil || !slices.Contains(divisions, *claims.Division)) {
 			forbidden(c)
 			return
 		}

@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"ppl-m1-be/config"
+	"ppl-m1-be/internal/usecase/utils"
+	"ppl-m1-be/middleware"
 
 	"github.com/gin-gonic/gin"
-
-	"ppl-m1-be/middleware"
 
 	apidocs "ppl-m1-be/docs"
 )
@@ -47,8 +47,10 @@ func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 		})
 	})
 
+	tokens := utils.NewTokenMaker(cfg.JWTSecret, cfg.AppName, cfg.JWTExpiresIn)
 	api := router.Group("/api/m1/v1")
-	mountAuth(api, db, cfg)
+	mountAuth(api, db, tokens)
+	mountDivision(api, db, tokens)
 	mountUser(api, db)
 
 	return router
