@@ -8,7 +8,27 @@ package sqlc
 import (
 	"context"
 	"database/sql"
+	"time"
 )
+
+const getAccountCredentials = `-- name: GetAccountCredentials :one
+SELECT email, password_hash, is_active
+FROM users
+WHERE id = $1
+`
+
+type GetAccountCredentialsRow struct {
+	Email        string
+	PasswordHash string
+	IsActive     bool
+}
+
+func (q *Queries) GetAccountCredentials(ctx context.Context, id int32) (GetAccountCredentialsRow, error) {
+	row := q.db.QueryRowContext(ctx, getAccountCredentials, id)
+	var i GetAccountCredentialsRow
+	err := row.Scan(&i.Email, &i.PasswordHash, &i.IsActive)
+	return i, err
+}
 
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT u.id,
@@ -56,4 +76,26 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.DivisionCode,
 	)
 	return i, err
+}
+
+const updatePassword = `-- name: UpdatePassword :one
+UPDATE users
+SET password_hash = $1::text,
+    updated_at = NOW()
+WHERE id = $2::int
+  AND password_hash = $3::text
+RETURNING updated_at
+`
+
+type UpdatePasswordParams struct {
+	NewHash string
+	ID      int32
+	OldHash string
+}
+
+func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, updatePassword, arg.NewHash, arg.ID, arg.OldHash)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
 }

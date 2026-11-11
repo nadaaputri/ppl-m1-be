@@ -19,6 +19,12 @@ const (
 	CodeInvalidParameter      = "INVALID_PARAMETER"
 	CodeDivisionCodeDuplicate = "DIVISION_CODE_DUPLICATE"
 	CodeRoleCodeDuplicate     = "ROLE_CODE_DUPLICATE"
+	CodeUserNotFound          = "USER_NOT_FOUND"
+	CodeCannotDeactivateSelf  = "CANNOT_DEACTIVATE_SELF"
+	CodeUserAlreadyActive     = "USER_ALREADY_ACTIVE"
+	CodeUserAlreadyInactive   = "USER_ALREADY_INACTIVE"
+	CodeUserReferenceInactive = "USER_REFERENCE_INACTIVE"
+	CodeOldPasswordInvalid    = "OLD_PASSWORD_INVALID"
 )
 
 func Success(c *gin.Context, status int, data any) {
@@ -33,10 +39,14 @@ func Fail(c *gin.Context, status int, code, message string) {
 }
 
 func FailFields(c *gin.Context, message string, fields map[string]string) {
+	FailFieldsCode(c, CodeValidation, message, fields)
+}
+
+func FailFieldsCode(c *gin.Context, code, message string, fields map[string]string) {
 	c.JSON(http.StatusUnprocessableEntity, gin.H{
 		"success": false,
 		"error": gin.H{
-			"code":    CodeValidation,
+			"code":    code,
 			"message": message,
 			"fields":  fields,
 		},

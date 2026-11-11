@@ -89,7 +89,7 @@ func toAccountParams(in AccountInput, hash string, roleID, divisionID int32) sql
 
 func toAccount(row sqlc.User, role, division string) Account {
 	return Account{
-		ID: row.ID, Name: row.Name, Email: row.Email, Role: role, Division: &division,
+		ID: row.ID, Name: row.Name, Email: row.Email, Role: &role, Division: &division,
 		PartnerID: utils.Int32Ptr(row.PartnerID), UnitUsahaID: utils.Int32Ptr(row.UnitUsahaID),
 		IsActive: row.IsActive, CreatedAt: row.CreatedAt,
 	}

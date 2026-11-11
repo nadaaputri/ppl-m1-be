@@ -22,6 +22,10 @@ type userStore interface {
 	GetPartnerRoleID(ctx context.Context, arg sqlc.GetPartnerRoleIDParams) (int32, error)
 	GetPartnerDivisionID(ctx context.Context, arg sqlc.GetPartnerDivisionIDParams) (int32, error)
 	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.User, error)
+	CountAccounts(ctx context.Context, arg sqlc.CountAccountsParams) (int64, error)
+	ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
+	GetAccountForStatus(ctx context.Context, arg sqlc.GetAccountForStatusParams) (sqlc.GetAccountForStatusRow, error)
+	SetAccountStatus(ctx context.Context, arg sqlc.SetAccountStatusParams) (sqlc.SetAccountStatusRow, error)
 }
 
 type ValidationError struct {
@@ -47,12 +51,29 @@ type Account struct {
 	ID          int32
 	Name        string
 	Email       string
-	Role        string
+	Role        *string
 	Division    *string
 	PartnerID   *int32
 	UnitUsahaID *int32
 	IsActive    bool
 	CreatedAt   time.Time
+}
+
+type AccountListInput struct {
+	PartnerID   *int32
+	Search      string
+	Role        string
+	Division    string
+	UnitUsahaID *int32
+	IsActive    *bool
+	Sort        string
+	Page        int
+	PerPage     int
+}
+
+type AccountListResult struct {
+	Items []Account
+	Total int
 }
 
 type RegisterInput struct {

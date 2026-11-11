@@ -22,3 +22,14 @@ func Int32Ptr(n sql.NullInt32) *int32 {
 	}
 	return &n.Int32
 }
+
+func NullText(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
+}
+
+func StringPtr(s sql.NullString) *string {
+	if !s.Valid {
+		return nil
+	}
+	return &s.String
+}

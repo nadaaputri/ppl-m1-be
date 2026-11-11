@@ -3,6 +3,7 @@ package auth_route
 import (
 	"ppl-m1-be/internal/usecase/auth_usecase"
 	"ppl-m1-be/internal/usecase/utils"
+	"time"
 )
 
 const maxPasswordBytes = 72
@@ -26,6 +27,15 @@ type meResponse struct {
 	PartnerID    *int32  `json:"partner_id"`
 	UnitUsahaID  *int32  `json:"unit_usaha_id"`
 	IsSuperAdmin bool    `json:"is_super_admin"`
+}
+
+type changePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+type changePasswordResponse struct {
+	ChangedAt time.Time `json:"changed_at"`
 }
 
 func toMeResponse(c *utils.Claims) meResponse {

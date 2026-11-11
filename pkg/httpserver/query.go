@@ -33,3 +33,12 @@ func QueryBool(c *gin.Context, key string) (*bool, bool) {
 	}
 	return &value, true
 }
+
+func ParamInt32(c *gin.Context, key string) (int32, bool) {
+	n, err := strconv.ParseInt(c.Param(key), 10, 32)
+	if err != nil || n < 1 {
+		Fail(c, http.StatusBadRequest, CodeInvalidParameter, "Parameter tidak valid")
+		return 0, false
+	}
+	return int32(n), true
+}

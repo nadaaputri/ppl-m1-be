@@ -15,4 +15,5 @@ func Mount(rg *gin.RouterGroup, uc *auth_usecase.Usecase, tokens *utils.TokenMak
 	rg.POST("/auth/login", handler.Login)
 	rg.POST("/auth/sessions/logout", protected, handler.Logout)
 	rg.GET("/me", protected, handler.Me)
+	rg.POST("/auth/change-password", protected, handler.ChangePassword)
 }
