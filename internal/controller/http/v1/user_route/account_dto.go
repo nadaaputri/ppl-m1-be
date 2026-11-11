@@ -22,7 +22,7 @@ type userResponse struct {
 	ID          int32     `json:"id"`
 	Name        string    `json:"name"`
 	Email       string    `json:"email"`
-	Role        string    `json:"role"`
+	Role        *string   `json:"role"`
 	Division    *string   `json:"division"`
 	PartnerID   *int32    `json:"partner_id"`
 	UnitUsahaID *int32    `json:"unit_usaha_id"`
@@ -57,4 +57,12 @@ func toUserResponse(a user_usecase.Account) userResponse {
 		PartnerID: a.PartnerID, UnitUsahaID: a.UnitUsahaID, IsActive: a.IsActive,
 		CreatedAt: a.CreatedAt.In(utils.WIB),
 	}
+}
+
+func toUserList(items []user_usecase.Account) []userResponse {
+	out := make([]userResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, toUserResponse(item))
+	}
+	return out
 }

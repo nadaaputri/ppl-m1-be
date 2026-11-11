@@ -8,7 +8,46 @@ package sqlc
 import (
 	"context"
 	"database/sql"
+	"time"
 )
+
+const countAccounts = `-- name: CountAccounts :one
+SELECT COUNT(*)
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE ($1::int IS NULL OR u.partner_id = $1::int)
+  AND ($2::text IS NULL
+       OR u.name ILIKE '%' || $2::text || '%'
+       OR u.email ILIKE '%' || $2::text || '%')
+  AND ($3::text IS NULL OR r.code = $3::text)
+  AND ($4::text IS NULL OR d.code = $4::text)
+  AND ($5::int IS NULL OR u.unit_usaha_id = $5::int)
+  AND ($6::bool IS NULL OR u.is_active = $6::bool)
+`
+
+type CountAccountsParams struct {
+	PartnerID    sql.NullInt32
+	Search       sql.NullString
+	RoleCode     sql.NullString
+	DivisionCode sql.NullString
+	UnitUsahaID  sql.NullInt32
+	IsActive     sql.NullBool
+}
+
+func (q *Queries) CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAccounts,
+		arg.PartnerID,
+		arg.Search,
+		arg.RoleCode,
+		arg.DivisionCode,
+		arg.UnitUsahaID,
+		arg.IsActive,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO users (partner_id, name, email, password_hash, role_id, division_id, unit_usaha_id, created_by)
@@ -140,4 +179,97 @@ func (q *Queries) GetRoleIDByName(ctx context.Context, roleName string) (int32, 
 	var id int32
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listAccounts = `-- name: ListAccounts :many
+SELECT u.id, u.name, u.email, u.partner_id, u.unit_usaha_id, u.is_active, u.created_at,
+       r.code AS role_code,
+       d.code AS division_code
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE ($1::int IS NULL OR u.partner_id = $1::int)
+  AND ($2::text IS NULL
+       OR u.name ILIKE '%' || $2::text || '%'
+       OR u.email ILIKE '%' || $2::text || '%')
+  AND ($3::text IS NULL OR r.code = $3::text)
+  AND ($4::text IS NULL OR d.code = $4::text)
+  AND ($5::int IS NULL OR u.unit_usaha_id = $5::int)
+  AND ($6::bool IS NULL OR u.is_active = $6::bool)
+ORDER BY
+  CASE WHEN $7::text = 'name' THEN u.name END ASC,
+  CASE WHEN $7::text = '-name' THEN u.name END DESC,
+  CASE WHEN $7::text = 'email' THEN u.email END ASC,
+  CASE WHEN $7::text = '-email' THEN u.email END DESC,
+  CASE WHEN $7::text = 'created_at' THEN u.created_at END ASC,
+  u.created_at DESC,
+  u.id DESC
+LIMIT $9::int OFFSET $8::int
+`
+
+type ListAccountsParams struct {
+	PartnerID    sql.NullInt32
+	Search       sql.NullString
+	RoleCode     sql.NullString
+	DivisionCode sql.NullString
+	UnitUsahaID  sql.NullInt32
+	IsActive     sql.NullBool
+	Sort         string
+	PageOffset   int32
+	PageLimit    int32
+}
+
+type ListAccountsRow struct {
+	ID           int32
+	Name         string
+	Email        string
+	PartnerID    sql.NullInt32
+	UnitUsahaID  sql.NullInt32
+	IsActive     bool
+	CreatedAt    time.Time
+	RoleCode     sql.NullString
+	DivisionCode sql.NullString
+}
+
+func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAccounts,
+		arg.PartnerID,
+		arg.Search,
+		arg.RoleCode,
+		arg.DivisionCode,
+		arg.UnitUsahaID,
+		arg.IsActive,
+		arg.Sort,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAccountsRow
+	for rows.Next() {
+		var i ListAccountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.PartnerID,
+			&i.UnitUsahaID,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.RoleCode,
+			&i.DivisionCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -14,4 +14,5 @@ func Mount(rg *gin.RouterGroup, uc *user_usecase.Usecase, tokens *utils.TokenMak
 
 	users := rg.Group("/users", middleware.Authenticate(tokens), middleware.RequireRole(middleware.RolePartner))
 	users.POST("", handler.CreateUser)
+	users.GET("", handler.ListUsers)
 }
