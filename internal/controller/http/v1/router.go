@@ -15,6 +15,9 @@ import (
 
 func NewRouter(db *sql.DB, cfg config.Config) *gin.Engine {
 	router := gin.New()
+	if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		panic(err)
+	}
 	router.Use(gin.Logger(), gin.CustomRecovery(recoverPanic), middleware.CORS(cfg.CORSAllowedOrigins))
 	router.HandleMethodNotAllowed = true
 	router.NoRoute(notFound)
