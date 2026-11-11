@@ -21,6 +21,12 @@ tags:
     description: Pemeriksaan kondisi server
   - name: Authentication
     description: Login, logout, profil, dan ubah kata sandi
+  - name: Users
+    description: Daftar, tambah, dan ubah status akun (M1-US3)
+  - name: Roles
+    description: Daftar dan tambah peran per partner
+  - name: Divisions
+    description: Daftar dan tambah divisi per partner
 
 security:
   - BearerAuth: []
@@ -213,6 +219,373 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/m1/v1/users:
+    get:
+      tags: [Users]
+      summary: Daftar akun
+      description: |
+        M1-US3. Hanya role `partner` dan super admin.
+        Partner admin hanya melihat akun partnernya sendiri.
+        Super admin melihat semua akun dan boleh memfilter `partner_id`.
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/PartnerIdFilter'
+        - $ref: '#/components/parameters/IsActive'
+        - name: q
+          in: query
+          description: Kata kunci pada nama atau email
+          schema: {type: string}
+        - name: role
+          in: query
+          description: Kode peran
+          schema: {type: string}
+        - name: division
+          in: query
+          description: Kode divisi
+          schema: {type: string}
+        - name: unit_usaha_id
+          in: query
+          schema: {type: integer, format: int32, minimum: 1}
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at, -created_at, name, -name, email, -email]
+            default: -created_at
+      responses:
+        '200':
+          description: Daftar akun. Hasil kosong dijawab data [].
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Users]
+      summary: Tambah akun
+      description: |
+        M1-US3. Hanya role `partner` dan super admin.
+        Sandi di-hash sebelum disimpan. Akun baru langsung aktif.
+        Partner admin otomatis menambah ke partnernya sendiri.
+        Super admin wajib mengirim `partner_id`.
+        Kode peran `partner` tidak boleh dipakai di sini.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Akun dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Email sudah terdaftar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: EMAIL_DUPLICATE
+                  message: Email sudah terdaftar
+        '422':
+          description: Isian tidak valid, atau peran/divisi tidak terdaftar di partner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                isian_tidak_valid:
+                  value:
+                    success: false
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Data yang dikirim tidak valid
+                      fields:
+                        password: Harus berisi huruf dan angka
+                peran_divisi_tidak_terdaftar:
+                  value:
+                    success: false
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Data yang dikirim tidak valid
+                      fields:
+                        role: Peran tidak terdaftar
+                        division: Divisi tidak terdaftar
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/m1/v1/users/{id}/status:
+    patch:
+      tags: [Users]
+      summary: Aktifkan atau nonaktifkan akun
+      description: |
+        M1-US3. Nonaktif berupa soft delete, data historis tetap tersimpan.
+        Akun nonaktif tidak bisa login.
+        Partner admin tidak boleh mengubah status akun ber-role `partner`.
+        Akun sendiri tidak boleh dinonaktifkan.
+        Mengaktifkan akun ditolak bila peran atau divisinya nonaktif.
+      operationId: setUserStatus
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+      responses:
+        '200':
+          description: Status berubah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusSuccess'
+        '400':
+          description: Body rusak atau id tidak valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                body_rusak:
+                  value:
+                    success: false
+                    error: {code: BAD_REQUEST, message: Format permintaan tidak valid}
+                id_tidak_valid:
+                  value:
+                    success: false
+                    error: {code: INVALID_PARAMETER, message: Parameter tidak valid}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: Role tidak berhak, atau partner admin mengubah akun ber-role partner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                role_tidak_berhak:
+                  value:
+                    success: false
+                    error: {code: FORBIDDEN, message: Anda tidak memiliki akses ke fitur ini}
+                akun_partner:
+                  value:
+                    success: false
+                    error: {code: FORBIDDEN, message: Anda tidak berhak mengubah status akun ini}
+        '404':
+          description: Akun tidak ditemukan atau di luar lingkup partner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: {code: USER_NOT_FOUND, message: Pengguna tidak ditemukan}
+        '409':
+          description: Status tidak bisa diubah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                nonaktifkan_diri_sendiri:
+                  value:
+                    success: false
+                    error: {code: CANNOT_DEACTIVATE_SELF, message: Tidak dapat menonaktifkan akun sendiri}
+                sudah_aktif:
+                  value:
+                    success: false
+                    error: {code: USER_ALREADY_ACTIVE, message: Akun sudah aktif}
+                sudah_nonaktif:
+                  value:
+                    success: false
+                    error: {code: USER_ALREADY_INACTIVE, message: Akun sudah nonaktif}
+                peran_divisi_nonaktif:
+                  value:
+                    success: false
+                    error:
+                      code: USER_REFERENCE_INACTIVE
+                      message: Peran atau divisi akun nonaktif, ganti dulu sebelum mengaktifkan
+        '422':
+          description: is_active tidak dikirim
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                success: false
+                error:
+                  code: VALIDATION_ERROR
+                  message: Data yang dikirim tidak valid
+                  fields: {is_active: Isian ini wajib diisi}
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/m1/v1/roles:
+    get:
+      tags: [Roles]
+      summary: Daftar peran
+      description: |
+        Pendukung M1-US3, dipakai untuk memilih peran saat menambah akun.
+        Hanya role `partner` dan super admin. Partner admin hanya melihat peran partnernya.
+      operationId: listRoles
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/PartnerIdFilter'
+        - $ref: '#/components/parameters/IsActive'
+      responses:
+        '200':
+          description: Daftar peran
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Roles]
+      summary: Tambah peran
+      description: |
+        Hanya role `partner` dan super admin. Super admin wajib mengirim `partner_id`.
+        Kode `administrator`, `partner`, `manajer`, dan `customer` dicadangkan sistem.
+      operationId: createRole
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Peran dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Kode peran sudah dipakai di partner ini
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: {code: ROLE_CODE_DUPLICATE, message: Kode peran sudah dipakai}
+        '422':
+          description: Isian tidak valid atau kode dicadangkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                success: false
+                error:
+                  code: VALIDATION_ERROR
+                  message: Data yang dikirim tidak valid
+                  fields: {code: Kode ini dicadangkan sistem}
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/m1/v1/divisions:
+    get:
+      tags: [Divisions]
+      summary: Daftar divisi
+      description: |
+        Pendukung M1-US3, dipakai untuk memilih divisi saat menambah akun.
+        Hanya role `partner` dan super admin. Partner admin hanya melihat divisi partnernya.
+      operationId: listDivisions
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/PartnerIdFilter'
+        - $ref: '#/components/parameters/IsActive'
+      responses:
+        '200':
+          description: Daftar divisi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DivisionListSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Divisions]
+      summary: Tambah divisi
+      description: Hanya role `partner` dan super admin. Super admin wajib mengirim `partner_id`.
+      operationId: createDivision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDivisionRequest'
+      responses:
+        '201':
+          description: Divisi dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DivisionSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Kode divisi sudah dipakai di partner ini
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: {code: DIVISION_CODE_DUPLICATE, message: Kode divisi sudah dipakai}
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
 
   securitySchemes:
@@ -220,6 +593,30 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 1, default: 1}
+    PerPage:
+      name: per_page
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    PartnerIdFilter:
+      name: partner_id
+      in: query
+      description: Hanya berlaku untuk super admin. Partner admin selalu dibatasi ke partnernya.
+      schema: {type: integer, format: int32, minimum: 1}
+    IsActive:
+      name: is_active
+      in: query
+      schema: {type: boolean}
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, format: int32, minimum: 1}
 
   schemas:
 
@@ -327,6 +724,152 @@ components:
               additionalProperties:
                 type: string
 
+    PaginationMeta:
+      type: object
+      properties:
+        page: {type: integer, example: 1}
+        per_page: {type: integer, example: 20}
+        total: {type: integer, example: 57}
+        total_pages: {type: integer, example: 3}
+
+    UserResponse:
+      type: object
+      properties:
+        id: {type: integer, format: int32}
+        name: {type: string}
+        email: {type: string, format: email}
+        role: {type: string, nullable: true, description: Kode peran}
+        division: {type: string, nullable: true, description: Kode divisi}
+        partner_id: {type: integer, format: int32, nullable: true}
+        unit_usaha_id: {type: integer, format: int32, nullable: true}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time, example: '2026-11-11T09:15:00+07:00'}
+
+    UserSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data: {$ref: '#/components/schemas/UserResponse'}
+
+    UserListSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/UserResponse'}
+        meta: {$ref: '#/components/schemas/PaginationMeta'}
+
+    CreateUserRequest:
+      type: object
+      required: [name, email, password, role, division]
+      properties:
+        partner_id:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Wajib bagi super admin. Diabaikan untuk partner admin.
+        name: {type: string, maxLength: 150}
+        email: {type: string, format: email, maxLength: 255}
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          description: Berisi huruf dan angka, tidak sama dengan email
+        role: {type: string, description: 'Kode peran milik partner, selain partner'}
+        division: {type: string, description: Kode divisi milik partner}
+        unit_usaha_id: {type: integer, format: int32, minimum: 1, nullable: true}
+
+    StatusRequest:
+      type: object
+      required: [is_active]
+      properties:
+        is_active: {type: boolean}
+
+    StatusSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data:
+          type: object
+          properties:
+            id: {type: integer, format: int32}
+            is_active: {type: boolean}
+
+    RoleResponse:
+      type: object
+      properties:
+        id: {type: integer, format: int32}
+        partner_id: {type: integer, format: int32, nullable: true}
+        code: {type: string, example: kasir}
+        name: {type: string, example: Kasir}
+        description: {type: string, nullable: true}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+
+    RoleSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data: {$ref: '#/components/schemas/RoleResponse'}
+
+    RoleListSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/RoleResponse'}
+        meta: {$ref: '#/components/schemas/PaginationMeta'}
+
+    CreateRoleRequest:
+      type: object
+      required: [code, name]
+      properties:
+        partner_id: {type: integer, format: int32, minimum: 1, description: Wajib bagi super admin}
+        code:
+          type: string
+          maxLength: 50
+          pattern: '^[a-z0-9]+([_-][a-z0-9]+)*$'
+        name: {type: string, maxLength: 100}
+        description: {type: string}
+
+    DivisionResponse:
+      type: object
+      properties:
+        id: {type: integer, format: int32}
+        partner_id: {type: integer, format: int32, nullable: true}
+        code: {type: string, example: penjualan}
+        name: {type: string, example: Penjualan}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+
+    DivisionSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data: {$ref: '#/components/schemas/DivisionResponse'}
+
+    DivisionListSuccess:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/DivisionResponse'}
+        meta: {$ref: '#/components/schemas/PaginationMeta'}
+
+    CreateDivisionRequest:
+      type: object
+      required: [code, name]
+      properties:
+        partner_id: {type: integer, format: int32, minimum: 1, description: Wajib bagi super admin}
+        code:
+          type: string
+          maxLength: 50
+          pattern: '^[a-z0-9]+([_-][a-z0-9]+)*$'
+        name: {type: string, maxLength: 100}
+
   responses:
 
     BadRequest:
@@ -378,3 +921,27 @@ components:
             error:
               code: INTERNAL_ERROR
               message: Terjadi kesalahan pada server
+    
+    Forbidden:
+      description: Role tidak berhak mengakses fitur ini
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: FORBIDDEN
+              message: Anda tidak memiliki akses ke fitur ini
+
+    InvalidParameter:
+      description: Parameter query tidak valid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: INVALID_PARAMETER
+              message: Parameter tidak valid
