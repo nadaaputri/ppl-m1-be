@@ -6,12 +6,19 @@ import { PrismaClient } from "../generated/prisma/client";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
-// Peran bawaan platform (partner_id = NULL). code dipakai di token, name untuk tampilan.
 const ROLES = [
   { code: "administrator", name: "Administrator" },
   { code: "manajer", name: "Manajer" },
   { code: "partner", name: "Partner" },
   { code: "customer", name: "Customer" },
+];
+
+const PERMISSIONS = [
+  { code: "m1.users.read", description: "Melihat daftar dan detail akun pengguna" },
+  { code: "m1.users.manage", description: "Menambah, mengubah, dan menonaktifkan akun pengguna" },
+  { code: "m1.roles.manage", description: "Mengelola peran dan izin peran" },
+  { code: "m1.divisions.manage", description: "Mengelola divisi dan izin divisi" },
+  { code: "m1.audit.read", description: "Melihat audit log aktivitas pengguna" },
 ];
 
 async function main() {
@@ -61,7 +68,29 @@ async function main() {
     },
   });
 
-  console.log("Seeder selesai: role dan akun admin awal siap.");
+  // Katalog izin: code adalah PK, jadi upsert aman dijalankan berulang
+  for (const p of PERMISSIONS) {
+    const mod = p.code.split(".")[0];
+    await prisma.permission.upsert({
+      where: { code: p.code },
+      update: { module: mod, description: p.description },
+      create: { code: p.code, module: mod, description: p.description },
+    });
+  }
+
+  // Semua izin m1.* diberikan ke peran bawaan "partner" (admin partner)
+  const partnerRole = await prisma.role.findFirstOrThrow({
+    where: { code: "partner", partnerId: null },
+  });
+  await prisma.rolePermission.createMany({
+    data: PERMISSIONS.filter((p) => p.code.startsWith("m1.")).map((p) => ({
+      roleId: partnerRole.id,
+      permissionCode: p.code,
+    })),
+    skipDuplicates: true,
+  });
+
+  console.log("Seeder selesai: role, akun admin awal, dan katalog izin siap.");
 }
 
 main()
