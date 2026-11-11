@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ type Config struct {
 	JWTSecret          string
 	JWTExpiresIn       time.Duration
 	CORSAllowedOrigins []string
+	TrustedProxies     []string
 }
 
 func Load() (Config, error) {
@@ -61,6 +63,10 @@ func Load() (Config, error) {
 
 	loadCORS(&cfg)
 
+	if err := loadProxies(&cfg); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
 }
 
@@ -87,4 +93,18 @@ func loadCORS(cfg *Config) {
 	for _, origin := range strings.Split(raw, ",") {
 		cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, strings.TrimSpace(origin))
 	}
+}
+
+func loadProxies(cfg *Config) error {
+	for _, raw := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(entry); err != nil && net.ParseIP(entry) == nil {
+			return fmt.Errorf("TRUSTED_PROXIES tidak valid: %q", entry)
+		}
+		cfg.TrustedProxies = append(cfg.TrustedProxies, entry)
+	}
+	return nil
 }
