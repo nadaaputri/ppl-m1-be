@@ -30,6 +30,15 @@ type userResponse struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type statusRequest struct {
+	IsActive *bool `json:"is_active"`
+}
+
+type statusResponse struct {
+	ID       int32 `json:"id"`
+	IsActive bool  `json:"is_active"`
+}
+
 func accountFieldErrors(req createUserRequest) map[string]string {
 	fields := map[string]string{}
 	if strings.TrimSpace(req.Name) == "" {

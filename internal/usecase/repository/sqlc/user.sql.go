@@ -128,6 +128,45 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const getAccountForStatus = `-- name: GetAccountForStatus :one
+SELECT u.id,
+       u.is_active,
+       r.code AS role_code,
+       COALESCE(r.is_active, TRUE)::bool AS role_active,
+       COALESCE(d.is_active, TRUE)::bool AS division_active
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE u.id = $1::int
+  AND ($2::int IS NULL OR u.partner_id = $2::int)
+`
+
+type GetAccountForStatusParams struct {
+	ID        int32
+	PartnerID sql.NullInt32
+}
+
+type GetAccountForStatusRow struct {
+	ID             int32
+	IsActive       bool
+	RoleCode       sql.NullString
+	RoleActive     bool
+	DivisionActive bool
+}
+
+func (q *Queries) GetAccountForStatus(ctx context.Context, arg GetAccountForStatusParams) (GetAccountForStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, getAccountForStatus, arg.ID, arg.PartnerID)
+	var i GetAccountForStatusRow
+	err := row.Scan(
+		&i.ID,
+		&i.IsActive,
+		&i.RoleCode,
+		&i.RoleActive,
+		&i.DivisionActive,
+	)
+	return i, err
+}
+
 const getPartnerDivisionID = `-- name: GetPartnerDivisionID :one
 SELECT id
 FROM divisions
@@ -272,4 +311,31 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const setAccountStatus = `-- name: SetAccountStatus :one
+UPDATE users
+SET is_active = $1::bool,
+    deactivated_at = CASE WHEN $1::bool THEN NULL ELSE NOW() END,
+    updated_at = NOW()
+WHERE id = $2::int
+  AND is_active <> $1::bool
+RETURNING id, is_active
+`
+
+type SetAccountStatusParams struct {
+	IsActive bool
+	ID       int32
+}
+
+type SetAccountStatusRow struct {
+	ID       int32
+	IsActive bool
+}
+
+func (q *Queries) SetAccountStatus(ctx context.Context, arg SetAccountStatusParams) (SetAccountStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, setAccountStatus, arg.IsActive, arg.ID)
+	var i SetAccountStatusRow
+	err := row.Scan(&i.ID, &i.IsActive)
+	return i, err
 }

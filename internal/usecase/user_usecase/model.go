@@ -24,6 +24,8 @@ type userStore interface {
 	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.User, error)
 	CountAccounts(ctx context.Context, arg sqlc.CountAccountsParams) (int64, error)
 	ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
+	GetAccountForStatus(ctx context.Context, arg sqlc.GetAccountForStatusParams) (sqlc.GetAccountForStatusRow, error)
+	SetAccountStatus(ctx context.Context, arg sqlc.SetAccountStatusParams) (sqlc.SetAccountStatusRow, error)
 }
 
 type ValidationError struct {

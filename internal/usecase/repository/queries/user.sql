@@ -65,3 +65,24 @@ ORDER BY
   u.created_at DESC,
   u.id DESC
 LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
+
+-- name: GetAccountForStatus :one
+SELECT u.id,
+       u.is_active,
+       r.code AS role_code,
+       COALESCE(r.is_active, TRUE)::bool AS role_active,
+       COALESCE(d.is_active, TRUE)::bool AS division_active
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE u.id = sqlc.arg(id)::int
+  AND (sqlc.narg(partner_id)::int IS NULL OR u.partner_id = sqlc.narg(partner_id)::int);
+
+-- name: SetAccountStatus :one
+UPDATE users
+SET is_active = sqlc.arg(is_active)::bool,
+    deactivated_at = CASE WHEN sqlc.arg(is_active)::bool THEN NULL ELSE NOW() END,
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::int
+  AND is_active <> sqlc.arg(is_active)::bool
+RETURNING id, is_active;

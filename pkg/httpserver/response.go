@@ -19,6 +19,11 @@ const (
 	CodeInvalidParameter      = "INVALID_PARAMETER"
 	CodeDivisionCodeDuplicate = "DIVISION_CODE_DUPLICATE"
 	CodeRoleCodeDuplicate     = "ROLE_CODE_DUPLICATE"
+	CodeUserNotFound          = "USER_NOT_FOUND"
+	CodeCannotDeactivateSelf  = "CANNOT_DEACTIVATE_SELF"
+	CodeUserAlreadyActive     = "USER_ALREADY_ACTIVE"
+	CodeUserAlreadyInactive   = "USER_ALREADY_INACTIVE"
+	CodeUserReferenceInactive = "USER_REFERENCE_INACTIVE"
 )
 
 func Success(c *gin.Context, status int, data any) {

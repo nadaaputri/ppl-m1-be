@@ -15,6 +15,20 @@ import (
 
 var allowedSorts = []string{"created_at", "-created_at", "name", "-name", "email", "-email"}
 
+var statusErrors = []struct {
+	err     error
+	status  int
+	code    string
+	message string
+}{
+	{user_usecase.ErrUserNotFound, http.StatusNotFound, httpserver.CodeUserNotFound, "Pengguna tidak ditemukan"},
+	{user_usecase.ErrNotAllowed, http.StatusForbidden, httpserver.CodeForbidden, "Anda tidak berhak mengubah status akun ini"},
+	{user_usecase.ErrCannotDeactivateSelf, http.StatusConflict, httpserver.CodeCannotDeactivateSelf, "Tidak dapat menonaktifkan akun sendiri"},
+	{user_usecase.ErrAlreadyActive, http.StatusConflict, httpserver.CodeUserAlreadyActive, "Akun sudah aktif"},
+	{user_usecase.ErrAlreadyInactive, http.StatusConflict, httpserver.CodeUserAlreadyInactive, "Akun sudah nonaktif"},
+	{user_usecase.ErrReferenceInactive, http.StatusConflict, httpserver.CodeUserReferenceInactive, "Peran atau divisi akun nonaktif, ganti dulu sebelum mengaktifkan"},
+}
+
 func (h *Handler) CreateUser(c *gin.Context) {
 	req, ok := bindCreateUser(c)
 	if !ok {
@@ -109,4 +123,56 @@ func userSort(c *gin.Context) (string, bool) {
 		return "", false
 	}
 	return sort, true
+}
+
+func (h *Handler) SetUserStatus(c *gin.Context) {
+	in, ok := statusInput(c)
+	if !ok {
+		return
+	}
+	result, err := h.uc.SetAccountStatus(c.Request.Context(), in)
+	if err != nil {
+		h.writeStatusError(c, err)
+		return
+	}
+	httpserver.Success(c, http.StatusOK, statusResponse{ID: result.ID, IsActive: result.IsActive})
+}
+
+func statusInput(c *gin.Context) (user_usecase.StatusInput, bool) {
+	id, ok := httpserver.ParamInt32(c, "id")
+	if !ok {
+		return user_usecase.StatusInput{}, false
+	}
+	req, ok := bindStatus(c)
+	if !ok {
+		return user_usecase.StatusInput{}, false
+	}
+	scope, ok := middleware.PartnerScope(c)
+	return user_usecase.StatusInput{
+		ActorID: middleware.GetClaims(c).UserID, PartnerScope: scope, TargetID: id, Active: *req.IsActive,
+	}, ok
+}
+
+func bindStatus(c *gin.Context) (statusRequest, bool) {
+	var req statusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpserver.BindError(c, err)
+		return req, false
+	}
+	if req.IsActive == nil {
+		httpserver.FailFields(c, httpserver.MsgValidation, map[string]string{"is_active": "Isian ini wajib diisi"})
+		return req, false
+	}
+	return req, true
+}
+
+func (h *Handler) writeStatusError(c *gin.Context, err error) {
+	for _, e := range statusErrors {
+		if errors.Is(err, e.err) {
+			httpserver.Fail(c, e.status, e.code, e.message)
+			return
+		}
+	}
+	slog.Error("ubah status akun gagal", "error", err)
+	httpserver.Fail(c, http.StatusInternalServerError, httpserver.CodeInternal, "Terjadi kesalahan pada server")
 }
