@@ -6,10 +6,10 @@ Backend REST API untuk **Modul M1: Manajemen Pengguna dan Hak Akses** pada proye
 
 | User Story | Cakupan | Status |
 |---|---|---|
-| M1-US1 | Login dan hak akses per divisi | Sprint 1: login, token, `/me`, logout, middleware sudah ada. Matriks hak akses (sprint 2) belum |
-| M1-US2 | Audit log aktivitas pengguna | Belum. Saat ini pencatatan hanya ke log aplikasi |
-| M1-US3 | Tambah dan nonaktifkan akun | Belum |
-| M1-US4 | Ubah kata sandi | Belum |
+| M1-US1 | Login dan hak akses per divisi | Login, JWT, `/me`, logout, dan middleware autentikasi/role tersedia. Permission dan pembatasan divisi belum terintegrasi lengkap. |
+| M1-US2 | Audit log aktivitas pengguna | Technical logging tersedia. Audit log permanen di database dan API untuk melihat riwayat belum tersedia. |
+| M1-US3 | Tambah dan nonaktifkan akun | Create account, list account, perubahan status, dan deaktivasi tersedia. Perubahan divisi pengguna dan pembatasan akses khusus Super Admin belum diselesaikan. |
+| M1-US4 | Ubah kata sandi | Endpoint dan usecase Change Password tersedia. Validasi konfirmasi kata sandi belum tersedia. |
 
 ## Teknologi
 
@@ -90,23 +90,45 @@ Setiap file migrasi baru harus ditambahkan ke daftar `schema` di `sqlc.yaml`.
 
 ## Endpoint
 
-Semua endpoint M1 memakai awalan `/api/m1/v1` sesuai Panduan API Bersama.
+Semua endpoint modul M1 menggunakan prefix
+`/api/m1/v1` sesuai Panduan API Bersama.
 
 | Method | Alamat | Akses | Fungsi |
 |---|---|---|---|
 | GET | `/health` | Publik | Cek server hidup |
 | GET | `/ready` | Publik | Cek koneksi database |
-| POST | `/api/m1/v1/auth/sessions` | Publik | Login |
+| POST | `/api/m1/v1/auth/login` | Publik | Login pengguna |
 | POST | `/api/m1/v1/auth/sessions/logout` | Bearer token | Logout |
-| GET | `/api/m1/v1/me` | Bearer token | Profil pengguna dari token (kontrak K-01) |
+| GET | `/api/m1/v1/me` | Bearer token | Profil pengguna |
+| POST | `/api/m1/v1/auth/change-password` | Bearer token | Mengubah kata sandi |
+| GET | `/api/m1/v1/users` | Bearer token | Daftar akun |
+| POST | `/api/m1/v1/users` | Bearer token | Membuat akun |
+| PATCH | `/api/m1/v1/users/{id}/status` | Bearer token | Mengubah status akun |
+| DELETE | `/api/m1/v1/users/{id}` | Bearer token | Menonaktifkan akun |
+| GET | `/api/m1/v1/roles` | Bearer token | Daftar role |
+| POST | `/api/m1/v1/roles` | Bearer token | Membuat role |
+| GET | `/api/m1/v1/divisions` | Bearer token | Daftar divisi |
+| POST | `/api/m1/v1/divisions` | Bearer token | Membuat divisi |
+
+Dokumentasi OpenAPI:
+- Raw specification: `GET /openapi.yaml`
+- Swagger UI: `/api/m1/v1/docs`
+
+Catatan:
+- Registrasi Customer tidak dicantumkan dalam dokumentasi fitur.
+- Endpoint pengelolaan akun, role, dan divisi masih memerlukan penyesuaian authorization agar sesuai keputusan Super Admin.
+- Role Global merupakan target arsitektur yang akan diterapkan pada tahap pengembangan Role dan Permission.
 
 ### Contoh login
 
 ```http
-POST /api/m1/v1/auth/sessions
+POST /api/m1/v1/auth/login
 Content-Type: application/json
 
-{ "email": "kasir@contoh.id", "password": "sandi-pengguna" }
+{
+  "email": "kasir@contoh.id",
+  "password": "sandi-pengguna"
+}
 ```
 
 Respons 200:
@@ -178,11 +200,19 @@ Vercel mendeteksi `main.go` di root dan menjalankan server pada port dari `PORT`
 
 ## Keterbatasan yang Diketahui
 
-- Token tidak disimpan di server. Logout hanya berlaku di sisi klien, dan akun yang dinonaktifkan tetap diterima sampai token kedaluwarsa (maksimal 8 jam).
-- Pembatasan akses memakai `role` pada token. Skema database menyimpan izin per role, bukan per divisi.
-- Belum ada pembatasan percobaan login berulang.
-- Login dan kejadian audit baru tercatat di log aplikasi, belum di tabel `audit_logs`.
-- Belum ada tes otomatis dan dokumentasi OpenAPI.
+- Token JWT tidak disimpan di server. Logout hanya berlaku di sisi klien dan token tetap berlaku sampai masa kedaluwarsa.
+- Pembatasan akses masih menggunakan role pada JWT. Permission dari database belum diintegrasikan ke middleware authorization.
+- Middleware RequireDivision sudah tersedia, tetapi belum diterapkan pada seluruh endpoint yang memerlukan pembatasan divisi.
+- Audit aktivitas masih menggunakan technical logging dan belum seluruhnya disimpan secara permanen ke tabel audit_logs.
+- Belum tersedia fitur perubahan divisi pengguna.
+- Change Password belum memiliki validasi konfirmasi kata sandi.
+- Autentikasi server-to-server menggunakan X-Service-Key belum diimplementasikan.
+- Provisioning akun Partner dari M3 belum tersedia.
+- Pengujian otomatis belum tersedia secara lengkap.
+
+Dokumentasi OpenAPI tersedia pada `docs/openapi.yaml`,
+dapat diakses melalui `/openapi.yaml`,
+dan ditampilkan melalui `/api/m1/v1/docs`.
 
 ## Acuan
 

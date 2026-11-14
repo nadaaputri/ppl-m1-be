@@ -9,25 +9,23 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-
 	db, err := app.ConnectDB(cfg)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer db.Close()
-
 	log.Println("Koneksi PostgreSQL berhasil")
-
-	router := v1.NewRouter(db, cfg)
-
 	address := ":" + cfg.AppPort
 	log.Printf("Server berjalan di http://localhost%s", address)
-
-	if err := router.Run(address); err != nil {
-		log.Fatal(err)
-	}
+	return v1.NewRouter(db, cfg).Run(address)
 }

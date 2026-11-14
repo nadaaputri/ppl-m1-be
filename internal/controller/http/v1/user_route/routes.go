@@ -16,4 +16,5 @@ func Mount(rg *gin.RouterGroup, uc *user_usecase.Usecase, tokens *utils.TokenMak
 	users.POST("", handler.CreateUser)
 	users.GET("", handler.ListUsers)
 	users.PATCH("/:id/status", handler.SetUserStatus)
+	users.DELETE("/:id", handler.DeactivateUser)
 }

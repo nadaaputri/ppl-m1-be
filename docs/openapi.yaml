@@ -1,4 +1,3 @@
-
 openapi: 3.0.3
 
 info:
@@ -11,10 +10,10 @@ info:
   version: 1.0.0
 
 servers:
-  - url: https://ppl-m1-be.vercel.app
-    description: Production (Vercel)
-  - url: http://localhost:8080
-    description: Local Development
+  - url: https://ppl-m1-be.vercel.app/api/m1/v1
+    description: Production (Vercel) — base API M1
+  - url: http://localhost:8080/api/m1/v1
+    description: Local Development — base API M1
 
 tags:
   - name: Health
@@ -24,9 +23,9 @@ tags:
   - name: Users
     description: Daftar, tambah, dan ubah status akun (M1-US3)
   - name: Roles
-    description: Daftar dan tambah peran per partner
+    description: Master Role ditargetkan global dan dikelola terpusat oleh M1. Implementasi endpoint saat ini masih menggunakan partner_id dan akan diselaraskan pada tahap Role/Permission.
   - name: Divisions
-    description: Daftar dan tambah divisi per partner
+    description: Master divisi secara arsitektural dimiliki M2. Untuk sementara, endpoint M1 digunakan untuk pengisian data; implementasi saat ini masih memakai partner_id.
 
 security:
   - BearerAuth: []
@@ -34,6 +33,9 @@ security:
 paths:
 
   /health:
+    servers:
+      - url: https://ppl-m1-be.vercel.app
+      - url: http://localhost:8080
     get:
       tags:
         - Health
@@ -46,13 +48,16 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
+                $ref: '#/components/schemas/HealthSuccess'
+              example:
+                success: true
+                data:
+                  status: ok
 
   /ready:
+    servers:
+      - url: https://ppl-m1-be.vercel.app
+      - url: http://localhost:8080
     get:
       tags:
         - Health
@@ -64,18 +69,26 @@ paths:
           description: Database terhubung
           content:
             application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessSuccess'
               example:
-                status: ready
-                database: connected
+                success: true
+                data:
+                  status: ready
+                  database: connected
         '503':
           description: Database tidak dapat diakses
           content:
             application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
               example:
-                status: not ready
-                error: database connection failed
+                success: false
+                error:
+                  code: DATABASE_UNAVAILABLE
+                  message: Database tidak dapat diakses
 
-  /api/m1/v1/auth/login:
+  /auth/login:
     post:
       tags: [Authentication]
       summary: Login pengguna
@@ -114,7 +127,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/m1/v1/auth/sessions/logout:
+  /auth/sessions/logout:
     post:
       tags:
         [Authentication]
@@ -136,7 +149,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
-  /api/m1/v1/me:
+  /me:
     get:
       tags:
         [Authentication]
@@ -163,7 +176,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
-  /api/m1/v1/auth/change-password:
+  /auth/change-password:
     post:
       tags: [Authentication]
       summary: Ubah kata sandi sendiri
@@ -219,12 +232,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/m1/v1/users:
+  /users:
     get:
       tags: [Users]
       summary: Daftar akun
       description: |
-        M1-US3. Hanya role `partner` dan super admin.
+        M1-US3. Implementasi saat ini mengizinkan role `partner`
+        dan super admin.
         Partner admin hanya melihat akun partnernya sendiri.
         Super admin melihat semua akun dan boleh memfilter `partner_id`.
       operationId: listUsers
@@ -273,7 +287,8 @@ paths:
       tags: [Users]
       summary: Tambah akun
       description: |
-        M1-US3. Hanya role `partner` dan super admin.
+        M1-US3. Implementasi saat ini mengizinkan role `partner`
+        dan super admin.
         Sandi di-hash sebelum disimpan. Akun baru langsung aktif.
         Partner admin otomatis menambah ke partnernya sendiri.
         Super admin wajib mengirim `partner_id`.
@@ -336,7 +351,43 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/m1/v1/users/{id}/status:
+  /users/{id}:
+    delete:
+      tags: [Users]
+      summary: Menonaktifkan akun
+      description: Menonaktifkan akun secara soft; data historis tetap tersimpan dan akun tidak dapat login.
+      operationId: deactivateUser
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Akun berhasil dinonaktifkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Akun tidak ditemukan atau di luar lingkup akses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Akun sudah nonaktif atau tidak dapat dinonaktifkan sendiri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{id}/status:
     patch:
       tags: [Users]
       summary: Aktifkan atau nonaktifkan akun
@@ -443,13 +494,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/m1/v1/roles:
+  /roles:
     get:
       tags: [Roles]
       summary: Daftar peran
       description: |
         Pendukung M1-US3, dipakai untuk memilih peran saat menambah akun.
-        Hanya role `partner` dan super admin. Partner admin hanya melihat peran partnernya.
+        Target arsitektur: Role merupakan master global yang dikelola terpusat oleh M1.
+        Catatan implementasi: endpoint saat ini masih menggunakan partner_id sebagai filter.
       operationId: listRoles
       parameters:
         - $ref: '#/components/parameters/Page'
@@ -475,7 +527,8 @@ paths:
       tags: [Roles]
       summary: Tambah peran
       description: |
-        Hanya role `partner` dan super admin. Super admin wajib mengirim `partner_id`.
+        Target arsitektur: Role merupakan master global yang dikelola terpusat oleh M1.
+        Catatan implementasi: endpoint saat ini masih mewajibkan partner_id untuk super admin.
         Kode `administrator`, `partner`, `manajer`, dan `customer` dicadangkan sistem.
       operationId: createRole
       requestBody:
@@ -498,7 +551,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          description: Kode peran sudah dipakai di partner ini
+          description: Kode peran sudah digunakan. Pada implementasi saat ini pemeriksaan duplikasi masih dalam scope partner.
           content:
             application/json:
               schema:
@@ -521,7 +574,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /api/m1/v1/divisions:
+  /divisions:
     get:
       tags: [Divisions]
       summary: Daftar divisi
@@ -586,6 +639,7 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalError'
+
 components:
 
   securitySchemes:
@@ -776,8 +830,8 @@ components:
           minLength: 8
           maxLength: 72
           description: Berisi huruf dan angka, tidak sama dengan email
-        role: {type: string, description: 'Kode peran milik partner, selain partner'}
-        division: {type: string, description: Kode divisi milik partner}
+        role: {type: string, description: 'Kode Role dari master M1. Implementasi saat ini masih memvalidasi scope partner sampai tahap Role Global.'}
+        division: {type: string, description: 'Kode divisi. Master divisi dimiliki M2; endpoint M1 digunakan sementara untuk pengisian data.'}
         unit_usaha_id: {type: integer, format: int32, minimum: 1, nullable: true}
 
     StatusRequest:
@@ -800,7 +854,7 @@ components:
       type: object
       properties:
         id: {type: integer, format: int32}
-        partner_id: {type: integer, format: int32, nullable: true}
+        partner_id: {type: integer, format: int32, nullable: true, description: Masih dikembalikan oleh implementasi saat ini; target Role Global tidak menggunakan scope partner.}
         code: {type: string, example: kasir}
         name: {type: string, example: Kasir}
         description: {type: string, nullable: true}
@@ -826,7 +880,7 @@ components:
       type: object
       required: [code, name]
       properties:
-        partner_id: {type: integer, format: int32, minimum: 1, description: Wajib bagi super admin}
+        partner_id: {type: integer, format: int32, minimum: 1, description: Wajib pada implementasi saat ini untuk super admin; akan dihapus saat Role Global diterapkan.}
         code:
           type: string
           maxLength: 50
@@ -863,7 +917,7 @@ components:
       type: object
       required: [code, name]
       properties:
-        partner_id: {type: integer, format: int32, minimum: 1, description: Wajib bagi super admin}
+        partner_id: {type: integer, format: int32, minimum: 1, description: Wajib pada implementasi saat ini untuk super admin; master divisi secara arsitektural dimiliki M2.}
         code:
           type: string
           maxLength: 50
@@ -921,7 +975,7 @@ components:
             error:
               code: INTERNAL_ERROR
               message: Terjadi kesalahan pada server
-    
+
     Forbidden:
       description: Role tidak berhak mengakses fitur ini
       content:

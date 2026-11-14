@@ -138,6 +138,36 @@ func (h *Handler) SetUserStatus(c *gin.Context) {
 	httpserver.Success(c, http.StatusOK, statusResponse{ID: result.ID, IsActive: result.IsActive})
 }
 
+func (h *Handler) DeactivateUser(c *gin.Context) {
+	in, ok := deactivateInput(c)
+	if !ok {
+		return
+	}
+	result, err := h.uc.SetAccountStatus(c.Request.Context(), in)
+	if err != nil {
+		h.writeStatusError(c, err)
+		return
+	}
+	httpserver.Success(c, http.StatusOK, statusResponse{
+		ID: result.ID, IsActive: result.IsActive,
+	})
+}
+
+func deactivateInput(c *gin.Context) (user_usecase.StatusInput, bool) {
+	id, ok := httpserver.ParamInt32(c, "id")
+	if !ok {
+		return user_usecase.StatusInput{}, false
+	}
+	scope, ok := middleware.PartnerScope(c)
+	if !ok {
+		return user_usecase.StatusInput{}, false
+	}
+	return user_usecase.StatusInput{
+		ActorID:      middleware.GetClaims(c).UserID,
+		PartnerScope: scope, TargetID: id, Active: false,
+	}, true
+}
+
 func statusInput(c *gin.Context) (user_usecase.StatusInput, bool) {
 	id, ok := httpserver.ParamInt32(c, "id")
 	if !ok {
