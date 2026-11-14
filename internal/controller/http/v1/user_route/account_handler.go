@@ -49,6 +49,50 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	httpserver.Success(c, http.StatusCreated, toUserResponse(account))
 }
 
+func (h *Handler) GetUser(c *gin.Context) {
+	id, ok := httpserver.ParamInt32(c, "id")
+	if !ok {
+		return
+	}
+	account, err := h.uc.GetAccount(c.Request.Context(), id)
+	if err != nil {
+		h.writeAccountError(c, err)
+		return
+	}
+	httpserver.Success(c, http.StatusOK, toUserResponse(account))
+}
+
+func (h *Handler) UpdateUser(c *gin.Context) {
+	id, ok := httpserver.ParamInt32(c, "id")
+	if !ok {
+		return
+	}
+	req, ok := bindUpdateUser(c)
+	if !ok {
+		return
+	}
+	in := toUpdateAccountInput(req, id, middleware.GetClaims(c).UserID, c.ClientIP())
+	account, err := h.uc.UpdateAccount(c.Request.Context(), in)
+	if err != nil {
+		h.writeAccountError(c, err)
+		return
+	}
+	httpserver.Success(c, http.StatusOK, toUserResponse(account))
+}
+
+func bindUpdateUser(c *gin.Context) (updateUserRequest, bool) {
+	var req updateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpserver.BindError(c, err)
+		return req, false
+	}
+	if fields := updateFieldErrors(req); len(fields) > 0 {
+		httpserver.FailFields(c, httpserver.MsgValidation, fields)
+		return req, false
+	}
+	return req, true
+}
+
 func bindCreateUser(c *gin.Context) (createUserRequest, bool) {
 	var req createUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -69,6 +113,8 @@ func (h *Handler) writeAccountError(c *gin.Context, err error) {
 		httpserver.FailFields(c, httpserver.MsgValidation, verr.Fields)
 	case errors.Is(err, user_usecase.ErrEmailTaken):
 		httpserver.Fail(c, http.StatusConflict, httpserver.CodeEmailDuplicate, "Email sudah terdaftar")
+	case errors.Is(err, user_usecase.ErrUserNotFound):
+		httpserver.Fail(c, http.StatusNotFound, httpserver.CodeUserNotFound, "Pengguna tidak ditemukan")
 	default:
 		slog.Error("tambah akun gagal", "error", err)
 		httpserver.Fail(c, http.StatusInternalServerError, httpserver.CodeInternal, "Terjadi kesalahan pada server")
@@ -165,11 +211,11 @@ func deactivateInput(c *gin.Context) (user_usecase.StatusInput, bool) {
 		return user_usecase.StatusInput{}, false
 	}
 	return user_usecase.StatusInput{
-		ActorID: middleware.GetClaims(c).UserID,
+		ActorID:      middleware.GetClaims(c).UserID,
 		PartnerScope: scope,
-		TargetID: id,
-		Active: false,
-		IP: c.ClientIP(),
+		TargetID:     id,
+		Active:       false,
+		IP:           c.ClientIP(),
 	}, true
 }
 

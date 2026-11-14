@@ -193,3 +193,105 @@ logged AS (
 SELECT updated.id, updated.is_active
 FROM updated
 CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved;
+
+-- name: GetAccountByID :one
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.partner_id,
+    u.unit_usaha_id,
+    u.is_active,
+    u.created_at,
+    r.code AS role_code,
+    d.code AS division_code
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE u.id = sqlc.arg(id)::int;
+
+-- name: UpdateAccount :one
+WITH target AS (
+    SELECT
+        u.id,
+        u.partner_id,
+        u.name,
+        u.email,
+        u.role_id,
+        r.code AS role_code,
+        u.division_id,
+        d.code AS division_code,
+        u.unit_usaha_id,
+        u.is_active
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    LEFT JOIN divisions d ON d.id = u.division_id
+    WHERE u.id = sqlc.arg(id)::int
+    FOR UPDATE OF u
+),
+updated AS (
+    UPDATE users u
+    SET
+        name = COALESCE(sqlc.narg(name)::varchar(150), target.name),
+        role_id = COALESCE(sqlc.narg(role_id)::int, target.role_id),
+        division_id = COALESCE(sqlc.narg(division_id)::int, target.division_id),
+        unit_usaha_id = COALESCE(sqlc.narg(unit_usaha_id)::int, target.unit_usaha_id),
+        updated_at = NOW()
+    FROM target
+    WHERE u.id = target.id
+    RETURNING
+        u.id, u.name, u.email, u.partner_id,
+        u.role_id, u.division_id, u.unit_usaha_id,
+        u.is_active, u.created_at
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        target.partner_id,
+        sqlc.arg(actor_id)::int,
+        'USER_UPDATED',
+        'users',
+        target.id,
+        jsonb_build_object(
+            'name', target.name,
+            'email', target.email,
+            'role', target.role_code,
+            'division', target.division_code,
+            'unit_usaha_id', target.unit_usaha_id,
+            'is_active', target.is_active
+        ),
+        jsonb_build_object(
+            'name', updated.name,
+            'email', updated.email,
+            'role', updated_role.code,
+            'division', updated_division.code,
+            'unit_usaha_id', updated.unit_usaha_id,
+            'is_active', updated.is_active
+        ),
+        sqlc.narg(ip_address)::varchar(45),
+        actor.name,
+        actor.email
+    FROM target
+    JOIN updated ON updated.id = target.id
+    LEFT JOIN roles updated_role ON updated_role.id = updated.role_id
+    LEFT JOIN divisions updated_division ON updated_division.id = updated.division_id
+    LEFT JOIN users actor ON actor.id = sqlc.arg(actor_id)::int
+    RETURNING id
+)
+SELECT
+    updated.id,
+    updated.name,
+    updated.email,
+    updated.partner_id,
+    updated.unit_usaha_id,
+    updated.is_active,
+    updated.created_at,
+    r.code AS role_code,
+    d.code AS division_code
+FROM updated
+LEFT JOIN roles r ON r.id = updated.role_id
+LEFT JOIN divisions d ON d.id = updated.division_id
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved;

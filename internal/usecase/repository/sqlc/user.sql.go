@@ -191,6 +191,52 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const getAccountByID = `-- name: GetAccountByID :one
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.partner_id,
+    u.unit_usaha_id,
+    u.is_active,
+    u.created_at,
+    r.code AS role_code,
+    d.code AS division_code
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE u.id = $1::int
+`
+
+type GetAccountByIDRow struct {
+	ID           int32
+	Name         string
+	Email        string
+	PartnerID    sql.NullInt32
+	UnitUsahaID  sql.NullInt32
+	IsActive     bool
+	CreatedAt    time.Time
+	RoleCode     sql.NullString
+	DivisionCode sql.NullString
+}
+
+func (q *Queries) GetAccountByID(ctx context.Context, id int32) (GetAccountByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAccountByID, id)
+	var i GetAccountByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.PartnerID,
+		&i.UnitUsahaID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.RoleCode,
+		&i.DivisionCode,
+	)
+	return i, err
+}
+
 const getAccountForStatus = `-- name: GetAccountForStatus :one
 SELECT u.id,
        u.is_active,
@@ -462,5 +508,139 @@ func (q *Queries) SetAccountStatus(ctx context.Context, arg SetAccountStatusPara
 	)
 	var i SetAccountStatusRow
 	err := row.Scan(&i.ID, &i.IsActive)
+	return i, err
+}
+
+const updateAccount = `-- name: UpdateAccount :one
+WITH target AS (
+    SELECT
+        u.id,
+        u.partner_id,
+        u.name,
+        u.email,
+        u.role_id,
+        r.code AS role_code,
+        u.division_id,
+        d.code AS division_code,
+        u.unit_usaha_id,
+        u.is_active
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    LEFT JOIN divisions d ON d.id = u.division_id
+    WHERE u.id = $1::int
+    FOR UPDATE OF u
+),
+updated AS (
+    UPDATE users u
+    SET
+        name = COALESCE($2::varchar(150), target.name),
+        role_id = COALESCE($3::int, target.role_id),
+        division_id = COALESCE($4::int, target.division_id),
+        unit_usaha_id = COALESCE($5::int, target.unit_usaha_id),
+        updated_at = NOW()
+    FROM target
+    WHERE u.id = target.id
+    RETURNING
+        u.id, u.name, u.email, u.partner_id,
+        u.role_id, u.division_id, u.unit_usaha_id,
+        u.is_active, u.created_at
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        target.partner_id,
+        $6::int,
+        'USER_UPDATED',
+        'users',
+        target.id,
+        jsonb_build_object(
+            'name', target.name,
+            'email', target.email,
+            'role', target.role_code,
+            'division', target.division_code,
+            'unit_usaha_id', target.unit_usaha_id,
+            'is_active', target.is_active
+        ),
+        jsonb_build_object(
+            'name', updated.name,
+            'email', updated.email,
+            'role', updated_role.code,
+            'division', updated_division.code,
+            'unit_usaha_id', updated.unit_usaha_id,
+            'is_active', updated.is_active
+        ),
+        $7::varchar(45),
+        actor.name,
+        actor.email
+    FROM target
+    JOIN updated ON updated.id = target.id
+    LEFT JOIN roles updated_role ON updated_role.id = updated.role_id
+    LEFT JOIN divisions updated_division ON updated_division.id = updated.division_id
+    LEFT JOIN users actor ON actor.id = $6::int
+    RETURNING id
+)
+SELECT
+    updated.id,
+    updated.name,
+    updated.email,
+    updated.partner_id,
+    updated.unit_usaha_id,
+    updated.is_active,
+    updated.created_at,
+    r.code AS role_code,
+    d.code AS division_code
+FROM updated
+LEFT JOIN roles r ON r.id = updated.role_id
+LEFT JOIN divisions d ON d.id = updated.division_id
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
+`
+
+type UpdateAccountParams struct {
+	ID          int32
+	Name        sql.NullString
+	RoleID      sql.NullInt32
+	DivisionID  sql.NullInt32
+	UnitUsahaID sql.NullInt32
+	ActorID     int32
+	IpAddress   sql.NullString
+}
+
+type UpdateAccountRow struct {
+	ID           int32
+	Name         string
+	Email        string
+	PartnerID    sql.NullInt32
+	UnitUsahaID  sql.NullInt32
+	IsActive     bool
+	CreatedAt    time.Time
+	RoleCode     sql.NullString
+	DivisionCode sql.NullString
+}
+
+func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (UpdateAccountRow, error) {
+	row := q.db.QueryRowContext(ctx, updateAccount,
+		arg.ID,
+		arg.Name,
+		arg.RoleID,
+		arg.DivisionID,
+		arg.UnitUsahaID,
+		arg.ActorID,
+		arg.IpAddress,
+	)
+	var i UpdateAccountRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.PartnerID,
+		&i.UnitUsahaID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.RoleCode,
+		&i.DivisionCode,
+	)
 	return i, err
 }

@@ -26,6 +26,8 @@ type userStore interface {
 	ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
 	GetAccountForStatus(ctx context.Context, arg sqlc.GetAccountForStatusParams) (sqlc.GetAccountForStatusRow, error)
 	SetAccountStatus(ctx context.Context, arg sqlc.SetAccountStatusParams) (sqlc.SetAccountStatusRow, error)
+	GetAccountByID(ctx context.Context, id int32) (sqlc.GetAccountByIDRow, error)
+	UpdateAccount(ctx context.Context, arg sqlc.UpdateAccountParams) (sqlc.UpdateAccountRow, error)
 }
 
 type ValidationError struct {
@@ -75,6 +77,16 @@ type AccountListInput struct {
 type AccountListResult struct {
 	Items []Account
 	Total int
+}
+
+type UpdateAccountInput struct {
+	ActorID     int32
+	TargetID    int32
+	Name        *string
+	Role        *string
+	Division    *string
+	UnitUsahaID *int32
+	IP          string
 }
 
 type RegisterInput struct {
