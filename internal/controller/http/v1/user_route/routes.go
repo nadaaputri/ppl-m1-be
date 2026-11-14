@@ -12,7 +12,7 @@ func Mount(rg *gin.RouterGroup, uc *user_usecase.Usecase, tokens *utils.TokenMak
 	handler := &Handler{uc: uc}
 	rg.POST("/auth/registrations", handler.Register)
 
-	users := rg.Group("/users", middleware.Authenticate(tokens), middleware.RequireRole(middleware.RolePartner))
+	users := rg.Group("/users", middleware.Authenticate(tokens), middleware.RequireSuperAdmin())
 	users.POST("", handler.CreateUser)
 	users.GET("", handler.ListUsers)
 	users.PATCH("/:id/status", handler.SetUserStatus)

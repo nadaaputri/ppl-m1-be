@@ -19,8 +19,8 @@ var (
 type userStore interface {
 	GetRoleIDByName(ctx context.Context, roleName string) (int32, error)
 	CreateUser(ctx context.Context, arg sqlc.CreateUserParams) (sqlc.CreateUserRow, error)
-	GetPartnerRoleID(ctx context.Context, arg sqlc.GetPartnerRoleIDParams) (int32, error)
-	GetPartnerDivisionID(ctx context.Context, arg sqlc.GetPartnerDivisionIDParams) (int32, error)
+	GetGlobalRoleIDByCode(ctx context.Context, code string) (int32, error)
+	GetGlobalDivisionIDByCode(ctx context.Context, code string) (int32, error)
 	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.User, error)
 	CountAccounts(ctx context.Context, arg sqlc.CountAccountsParams) (int64, error)
 	ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)

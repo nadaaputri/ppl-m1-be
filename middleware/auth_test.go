@@ -62,3 +62,34 @@ func TestAuthenticateAcceptsValidToken(t *testing.T) {
 		t.Fatalf("status seharusnya 204, didapat %d", res.Code)
 	}
 }
+
+func superAdminTestRouter(isSuperAdmin bool) *gin.Engine {
+    router := gin.New()
+    router.GET("/admin", func(c *gin.Context) {
+        c.Set(claimsKey, &utils.Claims{IsSuperAdmin: isSuperAdmin})
+        c.Next()
+    }, RequireSuperAdmin(), func(c *gin.Context) {
+        c.Status(http.StatusNoContent)
+    })
+    return router
+}
+
+func TestRequireSuperAdminRejectsPartner(t *testing.T) {
+    gin.SetMode(gin.TestMode)
+    res := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+    superAdminTestRouter(false).ServeHTTP(res, req)
+    if res.Code != http.StatusForbidden {
+        t.Fatalf("status seharusnya 403, didapat %d", res.Code)
+    }
+}
+
+func TestRequireSuperAdminAllowsSuperAdmin(t *testing.T) {
+    gin.SetMode(gin.TestMode)
+    res := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+    superAdminTestRouter(true).ServeHTTP(res, req)
+    if res.Code != http.StatusNoContent {
+        t.Fatalf("status seharusnya 204, didapat %d", res.Code)
+    }
+}

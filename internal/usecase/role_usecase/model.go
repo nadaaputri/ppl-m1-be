@@ -2,6 +2,7 @@ package role_usecase
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -9,16 +10,26 @@ import (
 )
 
 var (
-	ErrCodeTaken    = errors.New("kode peran sudah dipakai di partner ini")
-	ErrCodeReserved = errors.New("kode peran dicadangkan sistem")
+	ErrCodeTaken             = errors.New("kode peran global sudah dipakai")
+	ErrCodeReserved          = errors.New("kode peran dicadangkan sistem")
+	ErrRoleNotFound          = errors.New("peran tidak ditemukan")
+	ErrPermissionNotFound    = errors.New("permission tidak terdaftar")
+	ErrDuplicatePermission   = errors.New("permission duplikat")
+	ErrInvalidPermissionCode = errors.New("kode permission tidak valid")
 )
 
 var reservedCodes = []string{"administrator", "partner", "manajer", "customer"}
 
 type roleStore interface {
-	CountRoles(ctx context.Context, arg sqlc.CountRolesParams) (int64, error)
-	ListRoles(ctx context.Context, arg sqlc.ListRolesParams) ([]sqlc.Role, error)
-	CreateRole(ctx context.Context, arg sqlc.CreateRoleParams) (sqlc.Role, error)
+	CountRoles(context.Context, sql.NullBool) (int64, error)
+	ListRoles(context.Context, sqlc.ListRolesParams) ([]sqlc.Role, error)
+	CreateRole(context.Context, sqlc.CreateRoleParams) (sqlc.CreateRoleRow, error)
+	CountPermissions(context.Context) (int64, error)
+	ListPermissions(context.Context, sqlc.ListPermissionsParams) ([]sqlc.Permission, error)
+	CountPermissionsByCodes(context.Context, string) (int64, error)
+	GetGlobalRoleByID(context.Context, int32) (sqlc.Role, error)
+	GetRolePermissionCodes(context.Context, int32) ([]string, error)
+	SetRolePermissions(context.Context, sqlc.SetRolePermissionsParams) error
 }
 
 type Role struct {
@@ -32,10 +43,9 @@ type Role struct {
 }
 
 type ListInput struct {
-	PartnerID *int32
-	IsActive  *bool
-	Page      int
-	PerPage   int
+	IsActive *bool
+	Page     int
+	PerPage  int
 }
 
 type ListResult struct {
@@ -44,8 +54,24 @@ type ListResult struct {
 }
 
 type CreateInput struct {
-	PartnerID   int32
+	Code            string
+	Name            string
+	Description     string
+	PermissionCodes []string
+}
+
+type Permission struct {
 	Code        string
-	Name        string
+	Module      string
 	Description string
+}
+
+type PermissionListInput struct {
+	Page    int
+	PerPage int
+}
+
+type PermissionListResult struct {
+	Items []Permission
+	Total int
 }

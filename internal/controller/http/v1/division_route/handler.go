@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ppl-m1-be/internal/usecase/division_usecase"
-	"ppl-m1-be/middleware"
 	"ppl-m1-be/pkg/httpserver"
 )
 
@@ -30,35 +29,29 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Create(c *gin.Context) {
-	req, ok := bindCreate(c)
-	if !ok {
-		return
-	}
-	partnerID, ok := middleware.TargetPartnerID(c, req.PartnerID)
-	if !ok {
-		return
-	}
-	div, err := h.uc.Create(c.Request.Context(), division_usecase.CreateInput{
-		PartnerID: partnerID, Code: req.Code, Name: req.Name,
-	})
-	if err != nil {
-		h.writeError(c, err)
-		return
-	}
-	httpserver.Success(c, http.StatusCreated, toDivisionResponse(div))
+    req, ok := bindCreate(c)
+    if !ok {
+        return
+    }
+    div, err := h.uc.Create(c.Request.Context(), division_usecase.CreateInput{
+        Code: req.Code, Name: req.Name,
+    })
+    if err != nil {
+        h.writeError(c, err)
+        return
+    }
+    httpserver.Success(c, http.StatusCreated, toDivisionResponse(div))
 }
 
 func listInput(c *gin.Context) (division_usecase.ListInput, bool) {
-	page, perPage, ok := httpserver.ParsePage(c)
-	if !ok {
-		return division_usecase.ListInput{}, false
-	}
-	partnerID, ok := middleware.PartnerFilter(c)
-	if !ok {
-		return division_usecase.ListInput{}, false
-	}
-	active, ok := httpserver.QueryBool(c, "is_active")
-	return division_usecase.ListInput{PartnerID: partnerID, IsActive: active, Page: page, PerPage: perPage}, ok
+    page, perPage, ok := httpserver.ParsePage(c)
+    if !ok {
+        return division_usecase.ListInput{}, false
+    }
+    active, ok := httpserver.QueryBool(c, "is_active")
+    return division_usecase.ListInput{
+        IsActive: active, Page: page, PerPage: perPage,
+    }, ok
 }
 
 func bindCreate(c *gin.Context) (createRequest, bool) {

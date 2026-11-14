@@ -13,17 +13,13 @@ import (
 const countDivisions = `-- name: CountDivisions :one
 SELECT COUNT(*)
 FROM divisions
-WHERE ($1::int IS NULL OR partner_id = $1::int)
-  AND ($2::bool IS NULL OR is_active = $2::bool)
+WHERE partner_id IS NULL
+  AND ($1::bool IS NULL
+       OR is_active = $1::bool)
 `
 
-type CountDivisionsParams struct {
-	PartnerID sql.NullInt32
-	IsActive  sql.NullBool
-}
-
-func (q *Queries) CountDivisions(ctx context.Context, arg CountDivisionsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countDivisions, arg.PartnerID, arg.IsActive)
+func (q *Queries) CountDivisions(ctx context.Context, isActive sql.NullBool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDivisions, isActive)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -31,18 +27,21 @@ func (q *Queries) CountDivisions(ctx context.Context, arg CountDivisionsParams) 
 
 const createDivision = `-- name: CreateDivision :one
 INSERT INTO divisions (partner_id, code, name)
-VALUES ($1, $2, $3)
+VALUES (
+    NULL,
+    $1::varchar(50),
+    $2::varchar(100)
+)
 RETURNING name, is_active, created_at, id, code, partner_id, updated_at
 `
 
 type CreateDivisionParams struct {
-	PartnerID sql.NullInt32
-	Code      string
-	Name      string
+	Code string
+	Name string
 }
 
 func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) (Division, error) {
-	row := q.db.QueryRowContext(ctx, createDivision, arg.PartnerID, arg.Code, arg.Name)
+	row := q.db.QueryRowContext(ctx, createDivision, arg.Code, arg.Name)
 	var i Division
 	err := row.Scan(
 		&i.Name,
@@ -59,26 +58,22 @@ func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) 
 const listDivisions = `-- name: ListDivisions :many
 SELECT name, is_active, created_at, id, code, partner_id, updated_at
 FROM divisions
-WHERE ($1::int IS NULL OR partner_id = $1::int)
-  AND ($2::bool IS NULL OR is_active = $2::bool)
+WHERE partner_id IS NULL
+  AND ($1::bool IS NULL
+       OR is_active = $1::bool)
 ORDER BY id
-LIMIT $4::int OFFSET $3::int
+LIMIT $3::int
+OFFSET $2::int
 `
 
 type ListDivisionsParams struct {
-	PartnerID  sql.NullInt32
 	IsActive   sql.NullBool
 	PageOffset int32
 	PageLimit  int32
 }
 
 func (q *Queries) ListDivisions(ctx context.Context, arg ListDivisionsParams) ([]Division, error) {
-	rows, err := q.db.QueryContext(ctx, listDivisions,
-		arg.PartnerID,
-		arg.IsActive,
-		arg.PageOffset,
-		arg.PageLimit,
-	)
+	rows, err := q.db.QueryContext(ctx, listDivisions, arg.IsActive, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

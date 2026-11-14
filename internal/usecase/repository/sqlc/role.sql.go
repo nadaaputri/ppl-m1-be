@@ -8,47 +8,132 @@ package sqlc
 import (
 	"context"
 	"database/sql"
+	"time"
 )
+
+const countPermissions = `-- name: CountPermissions :one
+SELECT COUNT(*)
+FROM permissions
+`
+
+func (q *Queries) CountPermissions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPermissions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countPermissionsByCodes = `-- name: CountPermissionsByCodes :one
+SELECT COUNT(*)
+FROM permissions
+WHERE code = ANY(
+    string_to_array(
+        NULLIF($1::text, ''),
+        ','
+    )
+)
+`
+
+func (q *Queries) CountPermissionsByCodes(ctx context.Context, permissionCodes string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPermissionsByCodes, permissionCodes)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const countRoles = `-- name: CountRoles :one
 SELECT COUNT(*)
 FROM roles
-WHERE ($1::int IS NULL OR partner_id = $1::int)
-  AND ($2::bool IS NULL OR is_active = $2::bool)
+WHERE partner_id IS NULL
+  AND ($1::bool IS NULL
+       OR is_active = $1::bool)
 `
 
-type CountRolesParams struct {
-	PartnerID sql.NullInt32
-	IsActive  sql.NullBool
-}
-
-func (q *Queries) CountRoles(ctx context.Context, arg CountRolesParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countRoles, arg.PartnerID, arg.IsActive)
+func (q *Queries) CountRoles(ctx context.Context, isActive sql.NullBool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countRoles, isActive)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createRole = `-- name: CreateRole :one
-INSERT INTO roles (partner_id, code, name, description)
-VALUES ($1, $2, $3, $4)
-RETURNING name, id, code, description, is_active, partner_id, created_at, updated_at
+WITH created AS (
+    INSERT INTO roles (partner_id, code, name, description)
+    VALUES (
+        NULL,
+        $1::varchar(50),
+        $2::varchar(100),
+        $3::text
+    )
+    RETURNING name, id, code, description, is_active, partner_id, created_at, updated_at
+),
+assigned AS (
+    INSERT INTO role_permissions (role_id, permission_code)
+    SELECT created.id, selected.code
+    FROM created
+    CROSS JOIN LATERAL unnest(
+        string_to_array(
+            NULLIF($4::text, ''),
+            ','
+        )
+    ) AS selected(code)
+    RETURNING role_id
+)
+SELECT created.name, created.id, created.code, created.description, created.is_active, created.partner_id, created.created_at, created.updated_at
+FROM created
+LEFT JOIN (
+    SELECT DISTINCT role_id FROM assigned
+) AS assigned_roles ON assigned_roles.role_id = created.id
 `
 
 type CreateRoleParams struct {
-	PartnerID   sql.NullInt32
-	Code        string
-	Name        string
-	Description sql.NullString
+	Code            string
+	Name            string
+	Description     sql.NullString
+	PermissionCodes string
 }
 
-func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
+type CreateRoleRow struct {
+	Name        string
+	ID          int32
+	Code        string
+	Description sql.NullString
+	IsActive    bool
+	PartnerID   sql.NullInt32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (CreateRoleRow, error) {
 	row := q.db.QueryRowContext(ctx, createRole,
-		arg.PartnerID,
 		arg.Code,
 		arg.Name,
 		arg.Description,
+		arg.PermissionCodes,
 	)
+	var i CreateRoleRow
+	err := row.Scan(
+		&i.Name,
+		&i.ID,
+		&i.Code,
+		&i.Description,
+		&i.IsActive,
+		&i.PartnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getGlobalRoleByID = `-- name: GetGlobalRoleByID :one
+SELECT name, id, code, description, is_active, partner_id, created_at, updated_at
+FROM roles
+WHERE id = $1::int
+  AND partner_id IS NULL
+`
+
+func (q *Queries) GetGlobalRoleByID(ctx context.Context, id int32) (Role, error) {
+	row := q.db.QueryRowContext(ctx, getGlobalRoleByID, id)
 	var i Role
 	err := row.Scan(
 		&i.Name,
@@ -63,29 +148,91 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 	return i, err
 }
 
+const getRolePermissionCodes = `-- name: GetRolePermissionCodes :many
+SELECT permission_code
+FROM role_permissions
+WHERE role_id = $1::int
+ORDER BY permission_code
+`
+
+func (q *Queries) GetRolePermissionCodes(ctx context.Context, roleID int32) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getRolePermissionCodes, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var permission_code string
+		if err := rows.Scan(&permission_code); err != nil {
+			return nil, err
+		}
+		items = append(items, permission_code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPermissions = `-- name: ListPermissions :many
+SELECT code, module, description
+FROM permissions
+ORDER BY module, code
+LIMIT $2::int
+OFFSET $1::int
+`
+
+type ListPermissionsParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) ListPermissions(ctx context.Context, arg ListPermissionsParams) ([]Permission, error) {
+	rows, err := q.db.QueryContext(ctx, listPermissions, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Permission
+	for rows.Next() {
+		var i Permission
+		if err := rows.Scan(&i.Code, &i.Module, &i.Description); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRoles = `-- name: ListRoles :many
 SELECT name, id, code, description, is_active, partner_id, created_at, updated_at
 FROM roles
-WHERE ($1::int IS NULL OR partner_id = $1::int)
-  AND ($2::bool IS NULL OR is_active = $2::bool)
+WHERE partner_id IS NULL
+  AND ($1::bool IS NULL
+       OR is_active = $1::bool)
 ORDER BY id
-LIMIT $4::int OFFSET $3::int
+LIMIT $3::int
+OFFSET $2::int
 `
 
 type ListRolesParams struct {
-	PartnerID  sql.NullInt32
 	IsActive   sql.NullBool
 	PageOffset int32
 	PageLimit  int32
 }
 
 func (q *Queries) ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, error) {
-	rows, err := q.db.QueryContext(ctx, listRoles,
-		arg.PartnerID,
-		arg.IsActive,
-		arg.PageOffset,
-		arg.PageLimit,
-	)
+	rows, err := q.db.QueryContext(ctx, listRoles, arg.IsActive, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -114,4 +261,29 @@ func (q *Queries) ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const setRolePermissions = `-- name: SetRolePermissions :exec
+WITH removed AS (
+    DELETE FROM role_permissions
+    WHERE role_id = $1::int
+)
+INSERT INTO role_permissions (role_id, permission_code)
+SELECT $1::int, selected.code
+FROM unnest(
+    string_to_array(
+        NULLIF($2::text, ''),
+        ','
+    )
+) AS selected(code)
+`
+
+type SetRolePermissionsParams struct {
+	RoleID          int32
+	PermissionCodes string
+}
+
+func (q *Queries) SetRolePermissions(ctx context.Context, arg SetRolePermissionsParams) error {
+	_, err := q.db.ExecContext(ctx, setRolePermissions, arg.RoleID, arg.PermissionCodes)
+	return err
 }

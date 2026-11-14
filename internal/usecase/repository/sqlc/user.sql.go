@@ -167,41 +167,31 @@ func (q *Queries) GetAccountForStatus(ctx context.Context, arg GetAccountForStat
 	return i, err
 }
 
-const getPartnerDivisionID = `-- name: GetPartnerDivisionID :one
+const getGlobalDivisionIDByCode = `-- name: GetGlobalDivisionIDByCode :one
 SELECT id
 FROM divisions
-WHERE partner_id = $1::int
-  AND code = $2::text
+WHERE partner_id IS NULL
+  AND code = $1::text
   AND is_active
 `
 
-type GetPartnerDivisionIDParams struct {
-	PartnerID int32
-	Code      string
-}
-
-func (q *Queries) GetPartnerDivisionID(ctx context.Context, arg GetPartnerDivisionIDParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, getPartnerDivisionID, arg.PartnerID, arg.Code)
+func (q *Queries) GetGlobalDivisionIDByCode(ctx context.Context, code string) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getGlobalDivisionIDByCode, code)
 	var id int32
 	err := row.Scan(&id)
 	return id, err
 }
 
-const getPartnerRoleID = `-- name: GetPartnerRoleID :one
+const getGlobalRoleIDByCode = `-- name: GetGlobalRoleIDByCode :one
 SELECT id
 FROM roles
-WHERE partner_id = $1::int
-  AND code = $2::text
+WHERE partner_id IS NULL
+  AND code = $1::text
   AND is_active
 `
 
-type GetPartnerRoleIDParams struct {
-	PartnerID int32
-	Code      string
-}
-
-func (q *Queries) GetPartnerRoleID(ctx context.Context, arg GetPartnerRoleIDParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, getPartnerRoleID, arg.PartnerID, arg.Code)
+func (q *Queries) GetGlobalRoleIDByCode(ctx context.Context, code string) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getGlobalRoleIDByCode, code)
 	var id int32
 	err := row.Scan(&id)
 	return id, err
@@ -210,7 +200,8 @@ func (q *Queries) GetPartnerRoleID(ctx context.Context, arg GetPartnerRoleIDPara
 const getRoleIDByName = `-- name: GetRoleIDByName :one
 SELECT id
 FROM roles
-WHERE LOWER(name) = LOWER($1::text)
+WHERE partner_id IS NULL
+  AND LOWER(name) = LOWER($1::text)
 `
 
 func (q *Queries) GetRoleIDByName(ctx context.Context, roleName string) (int32, error) {

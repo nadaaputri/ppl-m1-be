@@ -30,34 +30,34 @@ func (u *Usecase) CreateAccount(ctx context.Context, in AccountInput) (Account, 
 }
 
 func (u *Usecase) resolveRefs(ctx context.Context, in AccountInput) (int32, int32, error) {
-	roleID, roleMsg, err := u.resolveRole(ctx, in.PartnerID, in.Role)
-	if err != nil {
-		return 0, 0, err
-	}
-	divisionID, divisionMsg, err := u.resolveDivision(ctx, in.PartnerID, in.Division)
-	if err != nil {
-		return 0, 0, err
-	}
-	return roleID, divisionID, refErrors(roleMsg, divisionMsg)
+    roleID, roleMsg, err := u.resolveRole(ctx, in.Role)
+    if err != nil {
+        return 0, 0, err
+    }
+    divisionID, divisionMsg, err := u.resolveDivision(ctx, in.Division)
+    if err != nil {
+        return 0, 0, err
+    }
+    return roleID, divisionID, refErrors(roleMsg, divisionMsg)
 }
 
-func (u *Usecase) resolveRole(ctx context.Context, partnerID int32, code string) (int32, string, error) {
-	if code == partnerRoleCode {
-		return 0, "Peran tidak dapat digunakan di sini", nil
-	}
-	id, err := u.store.GetPartnerRoleID(ctx, sqlc.GetPartnerRoleIDParams{PartnerID: partnerID, Code: code})
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, "Peran tidak terdaftar", nil
-	}
-	return id, "", err
+func (u *Usecase) resolveRole(ctx context.Context, code string) (int32, string, error) {
+    if code == partnerRoleCode {
+        return 0, "Peran tidak dapat digunakan di sini", nil
+    }
+    id, err := u.store.GetGlobalRoleIDByCode(ctx, code)
+    if errors.Is(err, sql.ErrNoRows) {
+        return 0, "Peran tidak terdaftar", nil
+    }
+    return id, "", err
 }
 
-func (u *Usecase) resolveDivision(ctx context.Context, partnerID int32, code string) (int32, string, error) {
-	id, err := u.store.GetPartnerDivisionID(ctx, sqlc.GetPartnerDivisionIDParams{PartnerID: partnerID, Code: code})
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, "Divisi tidak terdaftar", nil
-	}
-	return id, "", err
+func (u *Usecase) resolveDivision(ctx context.Context, code string) (int32, string, error) {
+    id, err := u.store.GetGlobalDivisionIDByCode(ctx, code)
+    if errors.Is(err, sql.ErrNoRows) {
+        return 0, "Divisi tidak terdaftar", nil
+    }
+    return id, "", err
 }
 
 func refErrors(roleMsg, divisionMsg string) error {

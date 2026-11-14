@@ -2,16 +2,17 @@ package division_usecase
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
 	"ppl-m1-be/internal/usecase/repository/sqlc"
 )
 
-var ErrCodeTaken = errors.New("kode divisi sudah dipakai di partner ini")
+var ErrCodeTaken = errors.New("kode divisi global sudah dipakai")
 
 type divisionStore interface {
-	CountDivisions(ctx context.Context, arg sqlc.CountDivisionsParams) (int64, error)
+	CountDivisions(context.Context, sql.NullBool) (int64, error)
 	ListDivisions(ctx context.Context, arg sqlc.ListDivisionsParams) ([]sqlc.Division, error)
 	CreateDivision(ctx context.Context, arg sqlc.CreateDivisionParams) (sqlc.Division, error)
 }
@@ -26,10 +27,9 @@ type Division struct {
 }
 
 type ListInput struct {
-	PartnerID *int32
-	IsActive  *bool
-	Page      int
-	PerPage   int
+	IsActive *bool
+	Page     int
+	PerPage  int
 }
 
 type ListResult struct {
@@ -38,7 +38,6 @@ type ListResult struct {
 }
 
 type CreateInput struct {
-	PartnerID int32
-	Code      string
-	Name      string
+	Code string
+	Name string
 }

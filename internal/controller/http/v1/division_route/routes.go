@@ -9,8 +9,8 @@ import (
 )
 
 func Mount(rg *gin.RouterGroup, uc *division_usecase.Usecase, tokens *utils.TokenMaker) {
-	handler := &Handler{uc: uc}
-	divisions := rg.Group("/divisions", middleware.Authenticate(tokens), middleware.RequireRole(middleware.RolePartner))
-	divisions.GET("", handler.List)
-	divisions.POST("", handler.Create)
+    handler := &Handler{uc: uc}
+    divisions := rg.Group("/divisions", middleware.Authenticate(tokens), middleware.RequireSuperAdmin())
+    divisions.GET("", handler.List)
+    divisions.POST("", handler.Create)
 }
