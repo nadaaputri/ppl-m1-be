@@ -7,6 +7,7 @@ SELECT u.id,
        u.is_super_admin,
        u.partner_id,
        u.unit_usaha_id,
+       u.role_id,
        r.code AS role_code,
        d.code AS division_code
 FROM users u

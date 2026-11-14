@@ -58,14 +58,18 @@ func (u *Usecase) failReason(user sqlc.GetUserByEmailRow, password string) strin
 }
 
 func (u *Usecase) issueToken(ctx context.Context, user sqlc.GetUserByEmailRow, ip string) (LoginResult, error) {
-	token, err := u.tokens.Generate(toClaims(user))
-	if err != nil {
-		return LoginResult{}, err
-	}
-
-	u.audit.Log(ctx, audit_usecase.Event{Type: "LOGIN_SUCCESS", UserID: user.ID, IP: ip})
-	return LoginResult{
-		AccessToken: token,
-		ExpiresIn:   int(u.tokens.TTL().Seconds()),
-	}, nil
+    permissions := []string{}
+    if user.RoleID.Valid {
+        codes, err := u.store.GetRolePermissionCodes(ctx, user.RoleID.Int32)
+        if err != nil {
+            return LoginResult{}, err
+        }
+        permissions = codes
+    }
+    token, err := u.tokens.Generate(toClaims(user, permissions))
+    if err != nil {
+        return LoginResult{}, err
+    }
+    u.audit.Log(ctx, audit_usecase.Event{Type: "LOGIN_SUCCESS", UserID: user.ID, IP: ip})
+    return LoginResult{AccessToken: token, ExpiresIn: int(u.tokens.TTL().Seconds())}, nil
 }

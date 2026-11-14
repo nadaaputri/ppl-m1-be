@@ -149,10 +149,12 @@ func (q *Queries) GetGlobalRoleByID(ctx context.Context, id int32) (Role, error)
 }
 
 const getRolePermissionCodes = `-- name: GetRolePermissionCodes :many
-SELECT permission_code
-FROM role_permissions
-WHERE role_id = $1::int
-ORDER BY permission_code
+SELECT rp.permission_code
+FROM role_permissions rp
+JOIN roles r ON r.id = rp.role_id
+WHERE rp.role_id = $1::int
+  AND r.partner_id IS NULL
+ORDER BY rp.permission_code
 `
 
 func (q *Queries) GetRolePermissionCodes(ctx context.Context, roleID int32) ([]string, error) {

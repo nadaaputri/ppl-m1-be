@@ -41,19 +41,34 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
+func RequirePermission(permission string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims := GetClaims(c)
+		if claims == nil {
+			unauthenticated(c)
+			return
+		}
+		if !claims.IsSuperAdmin && !slices.Contains(claims.Permissions, permission) {
+			forbidden(c)
+			return
+		}
+		c.Next()
+	}
+}
+
 func RequireSuperAdmin() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        claims := GetClaims(c)
-        if claims == nil {
-            unauthenticated(c)
-            return
-        }
-        if !claims.IsSuperAdmin {
-            forbidden(c)
-            return
-        }
-        c.Next()
-    }
+	return func(c *gin.Context) {
+		claims := GetClaims(c)
+		if claims == nil {
+			unauthenticated(c)
+			return
+		}
+		if !claims.IsSuperAdmin {
+			forbidden(c)
+			return
+		}
+		c.Next()
+	}
 }
 
 func RequireDivision(divisions ...string) gin.HandlerFunc {

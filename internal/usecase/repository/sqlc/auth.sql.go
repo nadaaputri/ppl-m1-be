@@ -39,6 +39,7 @@ SELECT u.id,
        u.is_super_admin,
        u.partner_id,
        u.unit_usaha_id,
+       u.role_id,
        r.code AS role_code,
        d.code AS division_code
 FROM users u
@@ -56,6 +57,7 @@ type GetUserByEmailRow struct {
 	IsSuperAdmin bool
 	PartnerID    sql.NullInt32
 	UnitUsahaID  sql.NullInt32
+	RoleID       sql.NullInt32
 	RoleCode     sql.NullString
 	DivisionCode sql.NullString
 }
@@ -72,6 +74,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.IsSuperAdmin,
 		&i.PartnerID,
 		&i.UnitUsahaID,
+		&i.RoleID,
 		&i.RoleCode,
 		&i.DivisionCode,
 	)

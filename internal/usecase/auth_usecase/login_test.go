@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ type loginStoreStub struct {
 	row   sqlc.GetUserByEmailRow
 	err   error
 	email string
+	permissions []string
 }
 
 func (s *loginStoreStub) GetUserByEmail(_ context.Context, email string) (sqlc.GetUserByEmailRow, error) {
@@ -32,6 +34,12 @@ func (*loginStoreStub) UpdatePassword(context.Context, sqlc.UpdatePasswordParams
 	return time.Time{}, nil
 }
 
+func (s *loginStoreStub) GetRolePermissionCodes(
+    _ context.Context, _ int32,
+) ([]string, error) {
+    return s.permissions, nil
+}
+
 type loginAuditStub struct{}
 
 func (loginAuditStub) Log(context.Context, audit_usecase.Event) {}
@@ -43,6 +51,7 @@ func loginTestRow() sqlc.GetUserByEmailRow {
 		UnitUsahaID:  sql.NullInt32{Int32: 3, Valid: true},
 		RoleCode:     sql.NullString{String: "staff", Valid: true},
 		DivisionCode: sql.NullString{String: "sales", Valid: true},
+		RoleID: sql.NullInt32{Int32: 2, Valid: true},
 	}
 }
 
@@ -157,4 +166,19 @@ func TestLoginIncludesContractClaims(t *testing.T) {
 	if claims.ExpiresAt.Sub(claims.IssuedAt.Time) != 8*time.Hour {
 		t.Fatal("masa berlaku token bukan 8 jam")
 	}
+}
+
+func TestLoginIncludesRolePermissions(t *testing.T) {
+    uc, store := newLoginTestUsecase(t, loginTestRow())
+    store.permissions = []string{"m1.user.view", "m1.user.create"}
+    result, err := uc.Login(context.Background(), LoginInput{
+        Email: "user@example.com", Password: "Password123",
+    })
+    if err != nil {
+        t.Fatal(err)
+    }
+    claims := parseLoginClaims(t, uc, result)
+    if !slices.Equal(claims.Permissions, store.permissions) {
+        t.Fatalf("permission tidak sesuai: %v", claims.Permissions)
+    }
 }

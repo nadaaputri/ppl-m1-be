@@ -72,10 +72,12 @@ WHERE id = sqlc.arg(id)::int
   AND partner_id IS NULL;
 
 -- name: GetRolePermissionCodes :many
-SELECT permission_code
-FROM role_permissions
-WHERE role_id = sqlc.arg(role_id)::int
-ORDER BY permission_code;
+SELECT rp.permission_code
+FROM role_permissions rp
+JOIN roles r ON r.id = rp.role_id
+WHERE rp.role_id = sqlc.arg(role_id)::int
+  AND r.partner_id IS NULL
+ORDER BY rp.permission_code;
 
 -- name: SetRolePermissions :exec
 WITH removed AS (

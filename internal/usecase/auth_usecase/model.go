@@ -14,6 +14,7 @@ type userStore interface {
 	GetUserByEmail(ctx context.Context, email string) (sqlc.GetUserByEmailRow, error)
 	GetAccountCredentials(ctx context.Context, id int32) (sqlc.GetAccountCredentialsRow, error)
 	UpdatePassword(ctx context.Context, arg sqlc.UpdatePasswordParams) (time.Time, error)
+	GetRolePermissionCodes(ctx context.Context, roleID int32) ([]string, error)
 }
 
 type LoginInput struct {
