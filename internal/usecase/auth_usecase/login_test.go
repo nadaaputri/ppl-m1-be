@@ -135,3 +135,26 @@ func TestLoginRejectsUnknownEmail(t *testing.T) {
 		t.Fatalf("seharusnya ditolak: %v", err)
 	}
 }
+
+func TestLoginIncludesContractClaims(t *testing.T) {
+	uc, _ := newLoginTestUsecase(t, loginTestRow())
+	result, err := uc.Login(context.Background(), LoginInput{
+		Email: "user@example.com", Password: "Password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := parseLoginClaims(t, uc, result)
+	if claims.Name != "Rani" || claims.Division == nil || *claims.Division != "sales" {
+		t.Fatalf("identity claims tidak sesuai: %+v", claims)
+	}
+	if claims.UnitUsahaID == nil || *claims.UnitUsahaID != 3 {
+		t.Fatalf("unit_usaha_id tidak sesuai: %+v", claims.UnitUsahaID)
+	}
+	if claims.Issuer != "araya" || claims.IssuedAt == nil || claims.ExpiresAt == nil {
+		t.Fatalf("registered claims tidak lengkap: %+v", claims)
+	}
+	if claims.ExpiresAt.Sub(claims.IssuedAt.Time) != 8*time.Hour {
+		t.Fatal("masa berlaku token bukan 8 jam")
+	}
+}
