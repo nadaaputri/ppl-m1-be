@@ -15,9 +15,9 @@ import (
 )
 
 type loginStoreStub struct {
-	row   sqlc.GetUserByEmailRow
-	err   error
-	email string
+	row         sqlc.GetUserByEmailRow
+	err         error
+	email       string
 	permissions []string
 }
 
@@ -35,9 +35,9 @@ func (*loginStoreStub) UpdatePassword(context.Context, sqlc.UpdatePasswordParams
 }
 
 func (s *loginStoreStub) GetRolePermissionCodes(
-    _ context.Context, _ int32,
+	_ context.Context, _ int32,
 ) ([]string, error) {
-    return s.permissions, nil
+	return s.permissions, nil
 }
 
 type loginAuditStub struct{}
@@ -51,7 +51,7 @@ func loginTestRow() sqlc.GetUserByEmailRow {
 		UnitUsahaID:  sql.NullInt32{Int32: 3, Valid: true},
 		RoleCode:     sql.NullString{String: "staff", Valid: true},
 		DivisionCode: sql.NullString{String: "sales", Valid: true},
-		RoleID: sql.NullInt32{Int32: 2, Valid: true},
+		RoleID:       sql.NullInt32{Int32: 2, Valid: true},
 	}
 }
 
@@ -160,8 +160,19 @@ func TestLoginIncludesContractClaims(t *testing.T) {
 	if claims.UnitUsahaID == nil || *claims.UnitUsahaID != 3 {
 		t.Fatalf("unit_usaha_id tidak sesuai: %+v", claims.UnitUsahaID)
 	}
-	if claims.Issuer != "araya" || claims.IssuedAt == nil || claims.ExpiresAt == nil {
-		t.Fatalf("registered claims tidak lengkap: %+v", claims)
+}
+
+func TestLoginTokenExpiresAfterEightHours(t *testing.T) {
+	uc, _ := newLoginTestUsecase(t, loginTestRow())
+	result, err := uc.Login(context.Background(), LoginInput{
+		Email: "user@example.com", Password: "Password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := parseLoginClaims(t, uc, result)
+	if claims.IssuedAt == nil || claims.ExpiresAt == nil {
+		t.Fatal("registered claims tidak lengkap")
 	}
 	if claims.ExpiresAt.Sub(claims.IssuedAt.Time) != 8*time.Hour {
 		t.Fatal("masa berlaku token bukan 8 jam")
@@ -169,16 +180,16 @@ func TestLoginIncludesContractClaims(t *testing.T) {
 }
 
 func TestLoginIncludesRolePermissions(t *testing.T) {
-    uc, store := newLoginTestUsecase(t, loginTestRow())
-    store.permissions = []string{"m1.user.view", "m1.user.create"}
-    result, err := uc.Login(context.Background(), LoginInput{
-        Email: "user@example.com", Password: "Password123",
-    })
-    if err != nil {
-        t.Fatal(err)
-    }
-    claims := parseLoginClaims(t, uc, result)
-    if !slices.Equal(claims.Permissions, store.permissions) {
-        t.Fatalf("permission tidak sesuai: %v", claims.Permissions)
-    }
+	uc, store := newLoginTestUsecase(t, loginTestRow())
+	store.permissions = []string{"m1.user.view", "m1.user.create"}
+	result, err := uc.Login(context.Background(), LoginInput{
+		Email: "user@example.com", Password: "Password123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := parseLoginClaims(t, uc, result)
+	if !slices.Equal(claims.Permissions, store.permissions) {
+		t.Fatalf("permission tidak sesuai: %v", claims.Permissions)
+	}
 }

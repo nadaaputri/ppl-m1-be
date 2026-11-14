@@ -53,10 +53,17 @@ func accountFieldErrors(req createUserRequest) map[string]string {
 	return fields
 }
 
-func toAccountInput(req createUserRequest, partnerID, createdBy int32) user_usecase.AccountInput {
+func toAccountInput(
+	req createUserRequest,
+	partnerID, createdBy int32,
+	ip string,
+) user_usecase.AccountInput {
 	return user_usecase.AccountInput{
-		PartnerID: partnerID, CreatedBy: createdBy, Name: req.Name, Email: req.Email,
-		Password: req.Password, Role: req.Role, Division: req.Division, UnitUsahaID: req.UnitUsahaID,
+		PartnerID: partnerID, CreatedBy: createdBy,
+		Name: req.Name, Email: req.Email,
+		Password: req.Password, Role: req.Role,
+		Division: req.Division, UnitUsahaID: req.UnitUsahaID,
+		IP: ip,
 	}
 }
 

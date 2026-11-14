@@ -58,7 +58,9 @@ func (q *Queries) CountRoles(ctx context.Context, isActive sql.NullBool) (int64,
 
 const createRole = `-- name: CreateRole :one
 WITH created AS (
-    INSERT INTO roles (partner_id, code, name, description)
+    INSERT INTO roles (
+        partner_id, code, name, description
+    )
     VALUES (
         NULL,
         $1::varchar(50),
@@ -77,13 +79,43 @@ assigned AS (
             ','
         )
     ) AS selected(code)
-    RETURNING role_id
+    RETURNING role_id, permission_code
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        NULL,
+        $5::int,
+        'ROLE_CREATED',
+        'roles',
+        created.id,
+        NULL::jsonb,
+        jsonb_build_object(
+            'code', created.code,
+            'name', created.name,
+            'description', created.description,
+            'permission_codes',
+            COALESCE(
+                array_agg(assigned.permission_code)
+                FILTER (WHERE assigned.permission_code IS NOT NULL),
+                ARRAY[]::text[]
+            )
+        ),
+        $6::varchar(45),
+        actor.name,
+        actor.email
+    FROM created
+    LEFT JOIN assigned ON assigned.role_id = created.id
+    LEFT JOIN users actor ON actor.id = $5::int
+    GROUP BY created.id, actor.name, actor.email
+    RETURNING id
 )
 SELECT created.name, created.id, created.code, created.description, created.is_active, created.partner_id, created.created_at, created.updated_at
 FROM created
-LEFT JOIN (
-    SELECT DISTINCT role_id FROM assigned
-) AS assigned_roles ON assigned_roles.role_id = created.id
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
 
 type CreateRoleParams struct {
@@ -91,6 +123,8 @@ type CreateRoleParams struct {
 	Name            string
 	Description     sql.NullString
 	PermissionCodes string
+	ActorID         int32
+	IpAddress       sql.NullString
 }
 
 type CreateRoleRow struct {
@@ -110,6 +144,8 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (CreateR
 		arg.Name,
 		arg.Description,
 		arg.PermissionCodes,
+		arg.ActorID,
+		arg.IpAddress,
 	)
 	var i CreateRoleRow
 	err := row.Scan(
@@ -266,26 +302,82 @@ func (q *Queries) ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, e
 }
 
 const setRolePermissions = `-- name: SetRolePermissions :exec
-WITH removed AS (
+WITH target_role AS (
+    SELECT id
+    FROM roles
+    WHERE id = $3::int
+      AND partner_id IS NULL
+),
+old_permissions AS (
+    SELECT COALESCE(
+        array_agg(permission_code ORDER BY permission_code),
+        ARRAY[]::text[]
+    ) AS codes
+    FROM role_permissions
+    WHERE role_id = $3::int
+),
+removed AS (
     DELETE FROM role_permissions
-    WHERE role_id = $1::int
+    WHERE role_id = $3::int
+    RETURNING role_id
+),
+assigned AS (
+    INSERT INTO role_permissions (role_id, permission_code)
+    SELECT target_role.id, selected.code
+    FROM target_role
+    CROSS JOIN (SELECT COUNT(*) FROM removed) AS removal_done
+    CROSS JOIN LATERAL unnest(
+        string_to_array(
+            NULLIF($4::text, ''),
+            ','
+        )
+    ) AS selected(code)
+    RETURNING permission_code
 )
-INSERT INTO role_permissions (role_id, permission_code)
-SELECT $1::int, selected.code
-FROM unnest(
-    string_to_array(
-        NULLIF($2::text, ''),
-        ','
-    )
-) AS selected(code)
+INSERT INTO audit_logs (
+    partner_id, user_id, action, resource, resource_id,
+    old_value, new_value, ip_address, actor_name, actor_email
+)
+SELECT
+    NULL,
+    $1::int,
+    'ROLE_PERMISSIONS_UPDATED',
+    'roles',
+    target_role.id,
+    jsonb_build_object(
+        'permission_codes', old_permissions.codes
+    ),
+    jsonb_build_object(
+        'permission_codes',
+        COALESCE(
+            array_agg(assigned.permission_code)
+            FILTER (WHERE assigned.permission_code IS NOT NULL),
+            ARRAY[]::text[]
+        )
+    ),
+    $2::varchar(45),
+    actor.name,
+    actor.email
+FROM target_role
+CROSS JOIN old_permissions
+LEFT JOIN assigned ON TRUE
+LEFT JOIN users actor ON actor.id = $1::int
+GROUP BY target_role.id, old_permissions.codes, actor.name, actor.email
 `
 
 type SetRolePermissionsParams struct {
+	ActorID         int32
+	IpAddress       sql.NullString
 	RoleID          int32
 	PermissionCodes string
 }
 
 func (q *Queries) SetRolePermissions(ctx context.Context, arg SetRolePermissionsParams) error {
-	_, err := q.db.ExecContext(ctx, setRolePermissions, arg.RoleID, arg.PermissionCodes)
+	_, err := q.db.ExecContext(ctx, setRolePermissions,
+		arg.ActorID,
+		arg.IpAddress,
+		arg.RoleID,
+		arg.PermissionCodes,
+	)
 	return err
 }

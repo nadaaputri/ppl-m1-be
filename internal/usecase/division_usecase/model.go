@@ -14,7 +14,7 @@ var ErrCodeTaken = errors.New("kode divisi global sudah dipakai")
 type divisionStore interface {
 	CountDivisions(context.Context, sql.NullBool) (int64, error)
 	ListDivisions(ctx context.Context, arg sqlc.ListDivisionsParams) ([]sqlc.Division, error)
-	CreateDivision(ctx context.Context, arg sqlc.CreateDivisionParams) (sqlc.Division, error)
+	CreateDivision(ctx context.Context, arg sqlc.CreateDivisionParams) (sqlc.CreateDivisionRow, error)
 }
 
 type Division struct {
@@ -38,6 +38,8 @@ type ListResult struct {
 }
 
 type CreateInput struct {
-	Code string
-	Name string
+	Code    string
+	Name    string
+	ActorID int32
+	IP      string
 }

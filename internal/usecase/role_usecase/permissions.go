@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"ppl-m1-be/internal/usecase/repository/sqlc"
+	"ppl-m1-be/internal/usecase/utils"
 )
 
 func (u *Usecase) ListPermissions(ctx context.Context, in PermissionListInput) (PermissionListResult, error) {
@@ -38,16 +39,25 @@ func (u *Usecase) GetRolePermissions(ctx context.Context, roleID int32) ([]strin
     return u.store.GetRolePermissionCodes(ctx, roleID)
 }
 
-func (u *Usecase) SetRolePermissions(ctx context.Context, roleID int32, codes []string) error {
-    if _, err := u.GetRolePermissions(ctx, roleID); err != nil {
-        return err
-    }
-    if err := u.validatePermissionCodes(ctx, codes); err != nil {
-        return err
-    }
-    return u.store.SetRolePermissions(ctx, sqlc.SetRolePermissionsParams{
-        RoleID: roleID, PermissionCodes: strings.Join(codes, ","),
-    })
+func (u *Usecase) SetRolePermissions(
+	ctx context.Context,
+	roleID int32,
+	codes []string,
+	actorID int32,
+	ip string,
+) error {
+	if _, err := u.GetRolePermissions(ctx, roleID); err != nil {
+		return err
+	}
+	if err := u.validatePermissionCodes(ctx, codes); err != nil {
+		return err
+	}
+	return u.store.SetRolePermissions(ctx, sqlc.SetRolePermissionsParams{
+		RoleID: roleID,
+		PermissionCodes: strings.Join(codes, ","),
+		ActorID: actorID,
+		IpAddress: utils.NullText(ip),
+	})
 }
 
 func (u *Usecase) validatePermissionCodes(ctx context.Context, codes []string) error {

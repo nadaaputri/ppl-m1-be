@@ -40,5 +40,7 @@ func toCreateParams(in CreateInput) sqlc.CreateRoleParams {
 			String: description, Valid: description != "",
 		},
 		PermissionCodes: strings.Join(in.PermissionCodes, ","),
+		ActorID:   in.ActorID,
+		IpAddress: utils.NullText(in.IP),
 	}
 }

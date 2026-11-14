@@ -8,6 +8,7 @@ package sqlc
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const countDivisions = `-- name: CountDivisions :one
@@ -26,23 +27,68 @@ func (q *Queries) CountDivisions(ctx context.Context, isActive sql.NullBool) (in
 }
 
 const createDivision = `-- name: CreateDivision :one
-INSERT INTO divisions (partner_id, code, name)
-VALUES (
-    NULL,
-    $1::varchar(50),
-    $2::varchar(100)
+WITH created AS (
+    INSERT INTO divisions (partner_id, code, name)
+    VALUES (
+        NULL,
+        $1::varchar(50),
+        $2::varchar(100)
+    )
+    RETURNING name, is_active, created_at, id, code, partner_id, updated_at
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        NULL,
+        $3::int,
+        'DIVISION_CREATED',
+        'divisions',
+        created.id,
+        NULL::jsonb,
+        jsonb_build_object(
+            'code', created.code,
+            'name', created.name
+        ),
+        $4::varchar(45),
+        actor.name,
+        actor.email
+    FROM created
+    LEFT JOIN users actor ON actor.id = $3::int
+    RETURNING id
 )
-RETURNING name, is_active, created_at, id, code, partner_id, updated_at
+SELECT created.name, created.is_active, created.created_at, created.id, created.code, created.partner_id, created.updated_at
+FROM created
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
 
 type CreateDivisionParams struct {
-	Code string
-	Name string
+	Code      string
+	Name      string
+	ActorID   int32
+	IpAddress sql.NullString
 }
 
-func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) (Division, error) {
-	row := q.db.QueryRowContext(ctx, createDivision, arg.Code, arg.Name)
-	var i Division
+type CreateDivisionRow struct {
+	Name      string
+	IsActive  bool
+	CreatedAt time.Time
+	ID        int32
+	Code      string
+	PartnerID sql.NullInt32
+	UpdatedAt time.Time
+}
+
+func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) (CreateDivisionRow, error) {
+	row := q.db.QueryRowContext(ctx, createDivision,
+		arg.Code,
+		arg.Name,
+		arg.ActorID,
+		arg.IpAddress,
+	)
+	var i CreateDivisionRow
 	err := row.Scan(
 		&i.Name,
 		&i.IsActive,

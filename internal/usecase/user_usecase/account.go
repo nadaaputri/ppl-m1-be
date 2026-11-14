@@ -30,34 +30,34 @@ func (u *Usecase) CreateAccount(ctx context.Context, in AccountInput) (Account, 
 }
 
 func (u *Usecase) resolveRefs(ctx context.Context, in AccountInput) (int32, int32, error) {
-    roleID, roleMsg, err := u.resolveRole(ctx, in.Role)
-    if err != nil {
-        return 0, 0, err
-    }
-    divisionID, divisionMsg, err := u.resolveDivision(ctx, in.Division)
-    if err != nil {
-        return 0, 0, err
-    }
-    return roleID, divisionID, refErrors(roleMsg, divisionMsg)
+	roleID, roleMsg, err := u.resolveRole(ctx, in.Role)
+	if err != nil {
+		return 0, 0, err
+	}
+	divisionID, divisionMsg, err := u.resolveDivision(ctx, in.Division)
+	if err != nil {
+		return 0, 0, err
+	}
+	return roleID, divisionID, refErrors(roleMsg, divisionMsg)
 }
 
 func (u *Usecase) resolveRole(ctx context.Context, code string) (int32, string, error) {
-    if code == partnerRoleCode {
-        return 0, "Peran tidak dapat digunakan di sini", nil
-    }
-    id, err := u.store.GetGlobalRoleIDByCode(ctx, code)
-    if errors.Is(err, sql.ErrNoRows) {
-        return 0, "Peran tidak terdaftar", nil
-    }
-    return id, "", err
+	if code == partnerRoleCode {
+		return 0, "Peran tidak dapat digunakan di sini", nil
+	}
+	id, err := u.store.GetGlobalRoleIDByCode(ctx, code)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "Peran tidak terdaftar", nil
+	}
+	return id, "", err
 }
 
 func (u *Usecase) resolveDivision(ctx context.Context, code string) (int32, string, error) {
-    id, err := u.store.GetGlobalDivisionIDByCode(ctx, code)
-    if errors.Is(err, sql.ErrNoRows) {
-        return 0, "Divisi tidak terdaftar", nil
-    }
-    return id, "", err
+	id, err := u.store.GetGlobalDivisionIDByCode(ctx, code)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "Divisi tidak terdaftar", nil
+	}
+	return id, "", err
 }
 
 func refErrors(roleMsg, divisionMsg string) error {
@@ -84,10 +84,11 @@ func toAccountParams(in AccountInput, hash string, roleID, divisionID int32) sql
 		DivisionID:   sql.NullInt32{Int32: divisionID, Valid: true},
 		UnitUsahaID:  utils.NullInt32(in.UnitUsahaID),
 		CreatedBy:    sql.NullInt32{Int32: in.CreatedBy, Valid: true},
+		IpAddress:    utils.NullText(in.IP),
 	}
 }
 
-func toAccount(row sqlc.User, role, division string) Account {
+func toAccount(row sqlc.CreateAccountRow, role, division string) Account {
 	return Account{
 		ID: row.ID, Name: row.Name, Email: row.Email, Role: &role, Division: &division,
 		PartnerID: utils.Int32Ptr(row.PartnerID), UnitUsahaID: utils.Int32Ptr(row.UnitUsahaID),

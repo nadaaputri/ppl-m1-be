@@ -24,9 +24,53 @@ WHERE partner_id IS NULL
   AND is_active;
   
 -- name: CreateAccount :one
-INSERT INTO users (partner_id, name, email, password_hash, role_id, division_id, unit_usaha_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING *;
+WITH created AS (
+    INSERT INTO users (
+        partner_id, name, email, password_hash,
+        role_id, division_id, unit_usaha_id, created_by
+    )
+    VALUES (
+        sqlc.narg(partner_id)::int,
+        sqlc.arg(name)::varchar(150),
+        sqlc.arg(email)::varchar(255),
+        sqlc.arg(password_hash)::text,
+        sqlc.narg(role_id)::int,
+        sqlc.narg(division_id)::int,
+        sqlc.narg(unit_usaha_id)::int,
+        sqlc.narg(created_by)::int
+    )
+    RETURNING *
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        created.partner_id,
+        created.created_by,
+        'USER_CREATED',
+        'users',
+        created.id,
+        NULL::jsonb,
+        jsonb_build_object(
+            'name', created.name,
+            'email', created.email,
+            'role_id', created.role_id,
+            'division_id', created.division_id,
+            'unit_usaha_id', created.unit_usaha_id,
+            'is_active', created.is_active
+        ),
+        sqlc.narg(ip_address)::varchar(45),
+        actor.name,
+        actor.email
+    FROM created
+    LEFT JOIN users actor ON actor.id = created.created_by
+    RETURNING id
+)
+SELECT created.*
+FROM created
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved;
 
 -- name: CountAccounts :one
 SELECT COUNT(*)
@@ -80,10 +124,72 @@ WHERE u.id = sqlc.arg(id)::int
   AND (sqlc.narg(partner_id)::int IS NULL OR u.partner_id = sqlc.narg(partner_id)::int);
 
 -- name: SetAccountStatus :one
-UPDATE users
-SET is_active = sqlc.arg(is_active)::bool,
-    deactivated_at = CASE WHEN sqlc.arg(is_active)::bool THEN NULL ELSE NOW() END,
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)::int
-  AND is_active <> sqlc.arg(is_active)::bool
-RETURNING id, is_active;
+WITH target AS (
+    SELECT
+        u.id,
+        u.partner_id,
+        u.name,
+        u.email,
+        u.unit_usaha_id,
+        u.is_active,
+        r.code AS role_code,
+        d.code AS division_code
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    LEFT JOIN divisions d ON d.id = u.division_id
+    WHERE u.id = sqlc.arg(id)::int
+      AND (
+          sqlc.narg(partner_id)::int IS NULL
+          OR u.partner_id = sqlc.narg(partner_id)::int
+      )
+    FOR UPDATE OF u
+),
+updated AS (
+    UPDATE users u
+    SET is_active = sqlc.arg(is_active)::bool,
+        deactivated_at = CASE
+            WHEN sqlc.arg(is_active)::bool THEN NULL
+            ELSE NOW()
+        END,
+        updated_at = NOW()
+    FROM target
+    WHERE u.id = target.id
+      AND target.is_active <> sqlc.arg(is_active)::bool
+    RETURNING u.id, u.is_active
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        target.partner_id,
+        sqlc.arg(actor_id)::int,
+        CASE
+            WHEN updated.is_active THEN 'USER_ACTIVATED'
+            ELSE 'USER_DEACTIVATED'
+        END,
+        'users',
+        target.id,
+        jsonb_build_object(
+            'name', target.name,
+            'email', target.email,
+            'unit_usaha_id', target.unit_usaha_id,
+            'role', target.role_code,
+            'division', target.division_code,
+            'is_active', target.is_active
+        ),
+        jsonb_build_object(
+            'is_active', updated.is_active
+        ),
+        sqlc.narg(ip_address)::varchar(45),
+        actor.name,
+        actor.email
+    FROM target
+    JOIN updated ON updated.id = target.id
+    LEFT JOIN users actor ON actor.id = sqlc.arg(actor_id)::int
+    RETURNING id
+)
+SELECT updated.id, updated.is_active
+FROM updated
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved;

@@ -21,7 +21,7 @@ type userStore interface {
 	CreateUser(ctx context.Context, arg sqlc.CreateUserParams) (sqlc.CreateUserRow, error)
 	GetGlobalRoleIDByCode(ctx context.Context, code string) (int32, error)
 	GetGlobalDivisionIDByCode(ctx context.Context, code string) (int32, error)
-	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.User, error)
+	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.CreateAccountRow, error)
 	CountAccounts(ctx context.Context, arg sqlc.CountAccountsParams) (int64, error)
 	ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
 	GetAccountForStatus(ctx context.Context, arg sqlc.GetAccountForStatusParams) (sqlc.GetAccountForStatusRow, error)
@@ -45,6 +45,7 @@ type AccountInput struct {
 	Role        string
 	Division    string
 	UnitUsahaID *int32
+	IP          string
 }
 
 type Account struct {

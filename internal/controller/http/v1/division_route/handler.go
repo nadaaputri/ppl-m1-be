@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ppl-m1-be/internal/usecase/division_usecase"
+	"ppl-m1-be/middleware"
 	"ppl-m1-be/pkg/httpserver"
 )
 
@@ -35,6 +36,8 @@ func (h *Handler) Create(c *gin.Context) {
     }
     div, err := h.uc.Create(c.Request.Context(), division_usecase.CreateInput{
         Code: req.Code, Name: req.Name,
+		ActorID: middleware.GetClaims(c).UserID,
+		IP:      c.ClientIP(),
     })
     if err != nil {
         h.writeError(c, err)

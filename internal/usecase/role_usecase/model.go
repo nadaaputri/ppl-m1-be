@@ -58,6 +58,8 @@ type CreateInput struct {
 	Name            string
 	Description     string
 	PermissionCodes []string
+	ActorID         int32
+	IP              string
 }
 
 type Permission struct {

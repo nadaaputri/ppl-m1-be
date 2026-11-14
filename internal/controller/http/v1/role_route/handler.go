@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ppl-m1-be/internal/usecase/role_usecase"
+	"ppl-m1-be/middleware"
 	"ppl-m1-be/pkg/httpserver"
 )
 
@@ -36,6 +37,8 @@ func (h *Handler) Create(c *gin.Context) {
     role, err := h.uc.Create(c.Request.Context(), role_usecase.CreateInput{
         Code: req.Code, Name: req.Name, Description: req.Description,
         PermissionCodes: req.PermissionCodes,
+        ActorID: middleware.GetClaims(c).UserID,
+        IP:      c.ClientIP(),
     })
     if err != nil {
         h.writeError(c, err)
@@ -134,7 +137,13 @@ func (h *Handler) SetRolePermissions(c *gin.Context) {
     if !ok {
         return
     }
-    if err := h.uc.SetRolePermissions(c.Request.Context(), id, codes); err != nil {
+    if err := h.uc.SetRolePermissions(
+        c.Request.Context(),
+        id,
+        codes,
+        middleware.GetClaims(c).UserID,
+        c.ClientIP(),
+    ); err != nil {
         h.writeError(c, err)
         return
     }

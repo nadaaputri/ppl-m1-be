@@ -6,6 +6,8 @@ import (
 
 	"ppl-m1-be/config"
 	apidocs "ppl-m1-be/docs"
+	"ppl-m1-be/internal/usecase/audit_usecase"
+	"ppl-m1-be/internal/usecase/repository/sqlc"
 	"ppl-m1-be/internal/usecase/utils"
 	"ppl-m1-be/middleware"
 	"ppl-m1-be/pkg/httpserver"
@@ -59,8 +61,11 @@ func readinessCheck(db *sql.DB) gin.HandlerFunc {
 func mountModuleRoutes(router *gin.Engine, db *sql.DB, cfg config.Config) {
 	tokens := utils.NewTokenMaker(cfg.JWTSecret, cfg.AppName, cfg.JWTExpiresIn)
 	api := router.Group("/api/m1/v1")
-	mountAuth(api, db, tokens)
+	audit := audit_usecase.New(sqlc.New(db))
+
+	mountAuth(api, db, tokens, audit)
 	mountDivision(api, db, tokens)
 	mountRole(api, db, tokens)
-	mountUser(api, db, tokens)
+	mountUser(api, db, tokens, audit)
+	mountAudit(api, audit, tokens)
 }

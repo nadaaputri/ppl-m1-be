@@ -50,9 +50,53 @@ func (q *Queries) CountAccounts(ctx context.Context, arg CountAccountsParams) (i
 }
 
 const createAccount = `-- name: CreateAccount :one
-INSERT INTO users (partner_id, name, email, password_hash, role_id, division_id, unit_usaha_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING email, password_hash, name, is_active, created_at, updated_at, unit_usaha_id, id, division_id, role_id, partner_id, is_super_admin, created_by, deactivated_at
+WITH created AS (
+    INSERT INTO users (
+        partner_id, name, email, password_hash,
+        role_id, division_id, unit_usaha_id, created_by
+    )
+    VALUES (
+        $1::int,
+        $2::varchar(150),
+        $3::varchar(255),
+        $4::text,
+        $5::int,
+        $6::int,
+        $7::int,
+        $8::int
+    )
+    RETURNING email, password_hash, name, is_active, created_at, updated_at, unit_usaha_id, id, division_id, role_id, partner_id, is_super_admin, created_by, deactivated_at
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        created.partner_id,
+        created.created_by,
+        'USER_CREATED',
+        'users',
+        created.id,
+        NULL::jsonb,
+        jsonb_build_object(
+            'name', created.name,
+            'email', created.email,
+            'role_id', created.role_id,
+            'division_id', created.division_id,
+            'unit_usaha_id', created.unit_usaha_id,
+            'is_active', created.is_active
+        ),
+        $9::varchar(45),
+        actor.name,
+        actor.email
+    FROM created
+    LEFT JOIN users actor ON actor.id = created.created_by
+    RETURNING id
+)
+SELECT created.email, created.password_hash, created.name, created.is_active, created.created_at, created.updated_at, created.unit_usaha_id, created.id, created.division_id, created.role_id, created.partner_id, created.is_super_admin, created.created_by, created.deactivated_at
+FROM created
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
 
 type CreateAccountParams struct {
@@ -64,9 +108,27 @@ type CreateAccountParams struct {
 	DivisionID   sql.NullInt32
 	UnitUsahaID  sql.NullInt32
 	CreatedBy    sql.NullInt32
+	IpAddress    sql.NullString
 }
 
-func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (User, error) {
+type CreateAccountRow struct {
+	Email         string
+	PasswordHash  string
+	Name          string
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	UnitUsahaID   sql.NullInt32
+	ID            int32
+	DivisionID    sql.NullInt32
+	RoleID        sql.NullInt32
+	PartnerID     sql.NullInt32
+	IsSuperAdmin  bool
+	CreatedBy     sql.NullInt32
+	DeactivatedAt sql.NullTime
+}
+
+func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (CreateAccountRow, error) {
 	row := q.db.QueryRowContext(ctx, createAccount,
 		arg.PartnerID,
 		arg.Name,
@@ -76,8 +138,9 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (U
 		arg.DivisionID,
 		arg.UnitUsahaID,
 		arg.CreatedBy,
+		arg.IpAddress,
 	)
-	var i User
+	var i CreateAccountRow
 	err := row.Scan(
 		&i.Email,
 		&i.PasswordHash,
@@ -305,18 +368,83 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]L
 }
 
 const setAccountStatus = `-- name: SetAccountStatus :one
-UPDATE users
-SET is_active = $1::bool,
-    deactivated_at = CASE WHEN $1::bool THEN NULL ELSE NOW() END,
-    updated_at = NOW()
-WHERE id = $2::int
-  AND is_active <> $1::bool
-RETURNING id, is_active
+WITH target AS (
+    SELECT
+        u.id,
+        u.partner_id,
+        u.name,
+        u.email,
+        u.unit_usaha_id,
+        u.is_active,
+        r.code AS role_code,
+        d.code AS division_code
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    LEFT JOIN divisions d ON d.id = u.division_id
+    WHERE u.id = $1::int
+      AND (
+          $2::int IS NULL
+          OR u.partner_id = $2::int
+      )
+    FOR UPDATE OF u
+),
+updated AS (
+    UPDATE users u
+    SET is_active = $3::bool,
+        deactivated_at = CASE
+            WHEN $3::bool THEN NULL
+            ELSE NOW()
+        END,
+        updated_at = NOW()
+    FROM target
+    WHERE u.id = target.id
+      AND target.is_active <> $3::bool
+    RETURNING u.id, u.is_active
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        target.partner_id,
+        $4::int,
+        CASE
+            WHEN updated.is_active THEN 'USER_ACTIVATED'
+            ELSE 'USER_DEACTIVATED'
+        END,
+        'users',
+        target.id,
+        jsonb_build_object(
+            'name', target.name,
+            'email', target.email,
+            'unit_usaha_id', target.unit_usaha_id,
+            'role', target.role_code,
+            'division', target.division_code,
+            'is_active', target.is_active
+        ),
+        jsonb_build_object(
+            'is_active', updated.is_active
+        ),
+        $5::varchar(45),
+        actor.name,
+        actor.email
+    FROM target
+    JOIN updated ON updated.id = target.id
+    LEFT JOIN users actor ON actor.id = $4::int
+    RETURNING id
+)
+SELECT updated.id, updated.is_active
+FROM updated
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
 
 type SetAccountStatusParams struct {
-	IsActive bool
-	ID       int32
+	ID        int32
+	PartnerID sql.NullInt32
+	IsActive  bool
+	ActorID   int32
+	IpAddress sql.NullString
 }
 
 type SetAccountStatusRow struct {
@@ -325,7 +453,13 @@ type SetAccountStatusRow struct {
 }
 
 func (q *Queries) SetAccountStatus(ctx context.Context, arg SetAccountStatusParams) (SetAccountStatusRow, error) {
-	row := q.db.QueryRowContext(ctx, setAccountStatus, arg.IsActive, arg.ID)
+	row := q.db.QueryRowContext(ctx, setAccountStatus,
+		arg.ID,
+		arg.PartnerID,
+		arg.IsActive,
+		arg.ActorID,
+		arg.IpAddress,
+	)
 	var i SetAccountStatusRow
 	err := row.Scan(&i.ID, &i.IsActive)
 	return i, err

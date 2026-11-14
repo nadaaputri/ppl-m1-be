@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	"ppl-m1-be/internal/usecase/audit_usecase"
 	"ppl-m1-be/internal/usecase/repository/sqlc"
 	"ppl-m1-be/internal/usecase/utils"
 )
@@ -42,11 +41,7 @@ func (u *Usecase) ChangePassword(ctx context.Context, in ChangePasswordInput) (t
 	if err := checkPasswords(acc, in); err != nil {
 		return time.Time{}, err
 	}
-	changedAt, err := u.saveNewPassword(ctx, acc.PasswordHash, in)
-	if err == nil {
-		u.audit.Log(ctx, audit_usecase.Event{Type: "PASSWORD_CHANGED", UserID: in.UserID, IP: in.IP})
-	}
-	return changedAt, err
+	return u.saveNewPassword(ctx, acc.PasswordHash, in)
 }
 
 func checkPasswords(acc sqlc.GetAccountCredentialsRow, in ChangePasswordInput) error {
@@ -68,7 +63,10 @@ func (u *Usecase) saveNewPassword(ctx context.Context, oldHash string, in Change
 		return time.Time{}, err
 	}
 	changedAt, err := u.store.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
-		ID: in.UserID, OldHash: oldHash, NewHash: newHash,
+		ID:        in.UserID,
+		OldHash:   oldHash,
+		NewHash:   newHash,
+		IpAddress: utils.NullText(in.IP),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return time.Time{}, ErrOldPasswordInvalid

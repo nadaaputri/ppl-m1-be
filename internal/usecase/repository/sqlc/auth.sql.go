@@ -82,22 +82,52 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 }
 
 const updatePassword = `-- name: UpdatePassword :one
-UPDATE users
-SET password_hash = $1::text,
-    updated_at = NOW()
-WHERE id = $2::int
-  AND password_hash = $3::text
-RETURNING updated_at
+WITH updated AS (
+    UPDATE users
+    SET password_hash = $1::text,
+        updated_at = NOW()
+    WHERE id = $2::int
+      AND password_hash = $3::text
+    RETURNING id, partner_id, name, email, updated_at
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        updated.partner_id,
+        updated.id,
+        'PASSWORD_CHANGED',
+        'users',
+        updated.id,
+        NULL::jsonb,
+        NULL::jsonb,
+        $4::varchar(45),
+        updated.name,
+        updated.email
+    FROM updated
+    RETURNING id
+)
+SELECT updated.updated_at
+FROM updated
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
 
 type UpdatePasswordParams struct {
-	NewHash string
-	ID      int32
-	OldHash string
+	NewHash   string
+	ID        int32
+	OldHash   string
+	IpAddress sql.NullString
 }
 
 func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (time.Time, error) {
-	row := q.db.QueryRowContext(ctx, updatePassword, arg.NewHash, arg.ID, arg.OldHash)
+	row := q.db.QueryRowContext(ctx, updatePassword,
+		arg.NewHash,
+		arg.ID,
+		arg.OldHash,
+		arg.IpAddress,
+	)
 	var updated_at time.Time
 	err := row.Scan(&updated_at)
 	return updated_at, err

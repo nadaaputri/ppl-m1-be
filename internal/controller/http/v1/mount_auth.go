@@ -12,7 +12,12 @@ import (
 	"ppl-m1-be/internal/usecase/utils"
 )
 
-func mountAuth(api *gin.RouterGroup, db *sql.DB, tokens *utils.TokenMaker) {
-	uc := auth_usecase.New(sqlc.New(db), tokens, audit_usecase.NewStdLogger())
+func mountAuth(
+	api *gin.RouterGroup,
+	db *sql.DB,
+	tokens *utils.TokenMaker,
+	audit audit_usecase.Logger,
+) {
+	uc := auth_usecase.New(sqlc.New(db), tokens, audit)
 	auth_route.Mount(api, uc, tokens)
 }

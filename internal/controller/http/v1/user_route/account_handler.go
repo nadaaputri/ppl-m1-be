@@ -38,7 +38,9 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	if !ok {
 		return
 	}
-	in := toAccountInput(req, partnerID, middleware.GetClaims(c).UserID)
+	in := toAccountInput(
+		req, partnerID, middleware.GetClaims(c).UserID, c.ClientIP(),
+	)
 	account, err := h.uc.CreateAccount(c.Request.Context(), in)
 	if err != nil {
 		h.writeAccountError(c, err)
@@ -163,8 +165,11 @@ func deactivateInput(c *gin.Context) (user_usecase.StatusInput, bool) {
 		return user_usecase.StatusInput{}, false
 	}
 	return user_usecase.StatusInput{
-		ActorID:      middleware.GetClaims(c).UserID,
-		PartnerScope: scope, TargetID: id, Active: false,
+		ActorID: middleware.GetClaims(c).UserID,
+		PartnerScope: scope,
+		TargetID: id,
+		Active: false,
+		IP: c.ClientIP(),
 	}, true
 }
 
@@ -179,7 +184,7 @@ func statusInput(c *gin.Context) (user_usecase.StatusInput, bool) {
 	}
 	scope, ok := middleware.PartnerScope(c)
 	return user_usecase.StatusInput{
-		ActorID: middleware.GetClaims(c).UserID, PartnerScope: scope, TargetID: id, Active: *req.IsActive,
+		ActorID: middleware.GetClaims(c).UserID, PartnerScope: scope, TargetID: id, Active: *req.IsActive, IP: c.ClientIP(),
 	}, ok
 }
 
