@@ -141,6 +141,17 @@ async function main() {
       skipDuplicates: true,
     });
   }
+  // Semua izin m1.* diberikan ke peran bawaan "partner" (admin partner)
+  const partnerRole = await prisma.role.findFirstOrThrow({
+    where: { code: "partner", partnerId: null },
+  });
+  await prisma.rolePermission.createMany({
+    data: PERMISSIONS.filter((p) => p.code.startsWith("m1.")).map((p) => ({
+      roleId: partnerRole.id,
+      permissionCode: p.code,
+    })),
+    skipDuplicates: true,
+  });
 
   console.log("Seeder selesai: role, akun admin awal, dan katalog izin siap.");
 }
