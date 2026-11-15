@@ -75,9 +75,34 @@ func toEntry(r sqlc.ListAuditLogsRow) Entry {
 	}
 }
 
-func rawJSON(value string) json.RawMessage {
-	if value == "" {
+func rawJSON(value interface{}) json.RawMessage {
+	switch v := value.(type) {
+	case nil:
 		return nil
+
+	case string:
+		if v == "" {
+			return nil
+		}
+		return json.RawMessage(v)
+
+	case []byte:
+		if len(v) == 0 {
+			return nil
+		}
+		return json.RawMessage(v)
+
+	case json.RawMessage:
+		if len(v) == 0 {
+			return nil
+		}
+		return v
+
+	default:
+		data, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		return json.RawMessage(data)
 	}
-	return json.RawMessage(value)
 }

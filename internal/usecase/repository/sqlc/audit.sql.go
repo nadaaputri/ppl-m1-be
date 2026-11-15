@@ -86,8 +86,11 @@ SELECT
     action,
     resource,
     resource_id,
-    old_value::text AS old_value,
-    new_value::text AS new_value,
+
+    -- NULL dari database diubah menjadi JSON null.
+    COALESCE(old_value::text, 'null') AS old_value,
+    COALESCE(new_value::text, 'null') AS new_value,
+
     ip_address,
     actor_name,
     actor_email,
@@ -114,8 +117,8 @@ type ListAuditLogsRow struct {
 	Action     string
 	Resource   string
 	ResourceID sql.NullInt32
-	OldValue   string
-	NewValue   string
+	OldValue   interface{}
+	NewValue   interface{}
 	IpAddress  sql.NullString
 	ActorName  sql.NullString
 	ActorEmail sql.NullString
