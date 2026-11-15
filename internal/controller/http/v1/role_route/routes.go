@@ -8,13 +8,25 @@ import (
 	"ppl-m1-be/middleware"
 )
 
-func Mount(rg *gin.RouterGroup, uc *role_usecase.Usecase, tokens *utils.TokenMaker) {
-    handler := &Handler{uc: uc}
-    roles := rg.Group("/roles", middleware.Authenticate(tokens), middleware.RequireSuperAdmin())
-    roles.GET("", handler.List)
-    roles.POST("", handler.Create)
-    roles.GET("/:id/permissions", handler.GetRolePermissions)
-    roles.PUT("/:id/permissions", handler.SetRolePermissions)
-    permissions := rg.Group("/permissions", middleware.Authenticate(tokens), middleware.RequireSuperAdmin())
-    permissions.GET("", handler.ListPermissions)
+func Mount(
+	rg *gin.RouterGroup,
+	uc *role_usecase.Usecase,
+	tokens *utils.TokenMaker,
+	store middleware.SessionStore,
+) {
+	handler := &Handler{uc: uc}
+	roles := rg.Group("/roles",
+		middleware.AuthenticateCurrent(tokens, store),
+		middleware.RequireSuperAdmin(),
+	)
+	roles.GET("", handler.List)
+	roles.POST("", handler.Create)
+	roles.GET("/:id/permissions", handler.GetRolePermissions)
+	roles.PUT("/:id/permissions", handler.SetRolePermissions)
+
+	permissions := rg.Group("/permissions",
+		middleware.AuthenticateCurrent(tokens, store),
+		middleware.RequireSuperAdmin(),
+	)
+	permissions.GET("", handler.ListPermissions)
 }

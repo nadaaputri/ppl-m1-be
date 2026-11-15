@@ -61,11 +61,12 @@ func readinessCheck(db *sql.DB) gin.HandlerFunc {
 func mountModuleRoutes(router *gin.Engine, db *sql.DB, cfg config.Config) {
 	tokens := utils.NewTokenMaker(cfg.JWTSecret, cfg.AppName, cfg.JWTExpiresIn)
 	api := router.Group("/api/m1/v1")
-	audit := audit_usecase.New(sqlc.New(db))
+	store := sqlc.New(db)
+	audit := audit_usecase.New(store)
 
-	mountAuth(api, db, tokens, audit)
-	mountDivision(api, db, tokens)
-	mountRole(api, db, tokens)
-	mountUser(api, db, tokens, audit)
-	mountAudit(api, audit, tokens)
+	mountAuth(api, store, tokens, audit)
+	mountDivision(api, store, tokens)
+	mountRole(api, store, tokens)
+	mountUser(api, store, tokens, audit)
+	mountAudit(api, audit, tokens, store)
 }

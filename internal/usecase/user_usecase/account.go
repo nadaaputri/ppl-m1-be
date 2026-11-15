@@ -74,17 +74,27 @@ func refErrors(roleMsg, divisionMsg string) error {
 	return &ValidationError{Fields: fields}
 }
 
-func toAccountParams(in AccountInput, hash string, roleID, divisionID int32) sqlc.CreateAccountParams {
+func toAccountParams(
+	in AccountInput,
+	hash string,
+	roleID, divisionID int32,
+) sqlc.CreateAccountParams {
 	return sqlc.CreateAccountParams{
-		PartnerID:    sql.NullInt32{Int32: in.PartnerID, Valid: true},
+		PartnerID:    utils.NullInt32(in.PartnerID),
 		Name:         strings.TrimSpace(in.Name),
 		Email:        strings.ToLower(strings.TrimSpace(in.Email)),
 		PasswordHash: hash,
-		RoleID:       sql.NullInt32{Int32: roleID, Valid: true},
-		DivisionID:   sql.NullInt32{Int32: divisionID, Valid: true},
-		UnitUsahaID:  utils.NullInt32(in.UnitUsahaID),
-		CreatedBy:    sql.NullInt32{Int32: in.CreatedBy, Valid: true},
-		IpAddress:    utils.NullText(in.IP),
+		RoleID: sql.NullInt32{
+			Int32: roleID, Valid: true,
+		},
+		DivisionID: sql.NullInt32{
+			Int32: divisionID, Valid: true,
+		},
+		UnitUsahaID: utils.NullInt32(in.UnitUsahaID),
+		CreatedBy: sql.NullInt32{
+			Int32: in.CreatedBy, Valid: true,
+		},
+		IpAddress: utils.NullText(in.IP),
 	}
 }
 

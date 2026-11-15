@@ -39,7 +39,7 @@ func (e *ValidationError) Error() string {
 }
 
 type AccountInput struct {
-	PartnerID   int32
+	PartnerID   *int32
 	CreatedBy   int32
 	Name        string
 	Email       string

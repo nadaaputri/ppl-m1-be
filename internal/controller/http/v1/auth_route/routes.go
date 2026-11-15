@@ -8,9 +8,14 @@ import (
 	"ppl-m1-be/middleware"
 )
 
-func Mount(rg *gin.RouterGroup, uc *auth_usecase.Usecase, tokens *utils.TokenMaker) {
+func Mount(
+	rg *gin.RouterGroup,
+	uc *auth_usecase.Usecase,
+	tokens *utils.TokenMaker,
+	store middleware.SessionStore,
+) {
 	handler := &Handler{uc: uc}
-	protected := middleware.Authenticate(tokens)
+	protected := middleware.AuthenticateCurrent(tokens, store)
 
 	rg.POST("/auth/login", handler.Login)
 	rg.POST("/auth/sessions/logout", protected, handler.Logout)

@@ -14,8 +14,8 @@ var (
 )
 
 type createRequest struct {
-    Code string `json:"code" binding:"required,max=50"`
-    Name string `json:"name" binding:"required,max=100"`
+	Code string `json:"code" binding:"required,max=50"`
+	Name string `json:"name" binding:"required,max=100"`
 }
 
 type divisionResponse struct {

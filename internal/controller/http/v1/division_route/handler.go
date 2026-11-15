@@ -30,31 +30,31 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Create(c *gin.Context) {
-    req, ok := bindCreate(c)
-    if !ok {
-        return
-    }
-    div, err := h.uc.Create(c.Request.Context(), division_usecase.CreateInput{
-        Code: req.Code, Name: req.Name,
+	req, ok := bindCreate(c)
+	if !ok {
+		return
+	}
+	div, err := h.uc.Create(c.Request.Context(), division_usecase.CreateInput{
+		Code: req.Code, Name: req.Name,
 		ActorID: middleware.GetClaims(c).UserID,
 		IP:      c.ClientIP(),
-    })
-    if err != nil {
-        h.writeError(c, err)
-        return
-    }
-    httpserver.Success(c, http.StatusCreated, toDivisionResponse(div))
+	})
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	httpserver.Success(c, http.StatusCreated, toDivisionResponse(div))
 }
 
 func listInput(c *gin.Context) (division_usecase.ListInput, bool) {
-    page, perPage, ok := httpserver.ParsePage(c)
-    if !ok {
-        return division_usecase.ListInput{}, false
-    }
-    active, ok := httpserver.QueryBool(c, "is_active")
-    return division_usecase.ListInput{
-        IsActive: active, Page: page, PerPage: perPage,
-    }, ok
+	page, perPage, ok := httpserver.ParsePage(c)
+	if !ok {
+		return division_usecase.ListInput{}, false
+	}
+	active, ok := httpserver.QueryBool(c, "is_active")
+	return division_usecase.ListInput{
+		IsActive: active, Page: page, PerPage: perPage,
+	}, ok
 }
 
 func bindCreate(c *gin.Context) (createRequest, bool) {

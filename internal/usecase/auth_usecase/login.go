@@ -17,13 +17,10 @@ func (u *Usecase) Login(ctx context.Context, in LoginInput) (LoginResult, error)
 	if err != nil {
 		return LoginResult{}, err
 	}
-
 	if reason := u.failReason(user, in.Password); reason != "" {
 		u.audit.Log(ctx, audit_usecase.Event{
-			Type:   "LOGIN_FAILED",
-			Email:  email,
-			IP:     in.IP,
-			Detail: reason,
+			Type: "LOGIN_FAILED", Email: email,
+			IP: in.IP, Detail: reason,
 		})
 		return LoginResult{}, ErrInvalidCredentials
 	}
@@ -43,42 +40,54 @@ func (u *Usecase) findUser(ctx context.Context, email string) (sqlc.GetUserByEma
 }
 
 func (u *Usecase) failReason(user sqlc.GetUserByEmailRow, password string) string {
-	hash := user.PasswordHash
 	if user.ID == 0 {
-		hash = u.dummyHash
-	}
-	wrongPassword := utils.CheckPassword(hash, password) != nil
-
-	switch {
-	case user.ID == 0:
+		utils.CheckPassword(u.dummyHash, password)
 		return "email tidak terdaftar"
-	case wrongPassword:
+	}
+	if utils.CheckPassword(user.PasswordHash, password) != nil {
 		return "sandi salah"
+	}
+	return accountFailureReason(user)
+}
+
+func accountFailureReason(user sqlc.GetUserByEmailRow) string {
+	switch {
 	case !user.IsActive:
 		return "akun nonaktif"
+	case !user.IsSuperAdmin && !user.RoleID.Valid:
+		return "peran tidak tersedia"
+	case user.RoleCode.Valid && !user.RoleActive:
+		return "peran nonaktif"
+	case user.DivisionCode.Valid && !user.DivisionActive:
+		return "divisi nonaktif"
 	}
 	return ""
 }
 
 func (u *Usecase) issueToken(ctx context.Context, user sqlc.GetUserByEmailRow, ip string) (LoginResult, error) {
-	permissions := []string{}
-	if user.RoleID.Valid {
-		codes, err := u.store.GetRolePermissionCodes(ctx, user.RoleID.Int32)
-		if err != nil {
-			return LoginResult{}, err
-		}
-		permissions = codes
+	permissions, err := u.permissionsForUser(ctx, user.ID)
+	if err != nil {
+		return LoginResult{}, err
 	}
 	token, err := u.tokens.Generate(toClaims(user, permissions))
 	if err != nil {
 		return LoginResult{}, err
 	}
-	u.audit.Log(ctx, audit_usecase.Event{
-		Type:      "LOGIN_SUCCESS",
-		UserID:    user.ID,
-		Email:     user.Email,
-		ActorName: user.Name,
-		IP:        ip,
-	})
+	u.auditLoginSuccess(ctx, user, ip)
 	return LoginResult{AccessToken: token, ExpiresIn: int(u.tokens.TTL().Seconds())}, nil
+}
+
+func (u *Usecase) permissionsForUser(ctx context.Context, userID int32) ([]string, error) {
+	permissions, err := u.store.GetUserPermissionCodes(ctx, userID)
+	if permissions == nil {
+		permissions = []string{}
+	}
+	return permissions, err
+}
+
+func (u *Usecase) auditLoginSuccess(ctx context.Context, user sqlc.GetUserByEmailRow, ip string) {
+	u.audit.Log(ctx, audit_usecase.Event{
+		Type: "LOGIN_SUCCESS", UserID: user.ID, Email: user.Email,
+		ActorName: user.Name, IP: ip,
+	})
 }

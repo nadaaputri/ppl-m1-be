@@ -57,20 +57,27 @@ func accountFieldErrors(req createUserRequest) map[string]string {
 	if req.UnitUsahaID != nil && *req.UnitUsahaID < 1 {
 		fields["unit_usaha_id"] = "Nilai tidak valid"
 	}
+	if req.PartnerID != nil && *req.PartnerID < 1 {
+		fields["partner_id"] = "Nilai tidak valid"
+	}
 	return fields
 }
 
 func toAccountInput(
 	req createUserRequest,
-	partnerID, createdBy int32,
+	createdBy int32,
 	ip string,
 ) user_usecase.AccountInput {
 	return user_usecase.AccountInput{
-		PartnerID: partnerID, CreatedBy: createdBy,
-		Name: req.Name, Email: req.Email,
-		Password: req.Password, Role: req.Role,
-		Division: req.Division, UnitUsahaID: req.UnitUsahaID,
-		IP: ip,
+		PartnerID:   req.PartnerID,
+		CreatedBy:   createdBy,
+		Name:        req.Name,
+		Email:       req.Email,
+		Password:    req.Password,
+		Role:        req.Role,
+		Division:    req.Division,
+		UnitUsahaID: req.UnitUsahaID,
+		IP:          ip,
 	}
 }
 

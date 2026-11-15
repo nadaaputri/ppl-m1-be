@@ -34,8 +34,9 @@ func (*loginStoreStub) UpdatePassword(context.Context, sqlc.UpdatePasswordParams
 	return time.Time{}, nil
 }
 
-func (s *loginStoreStub) GetRolePermissionCodes(
-	_ context.Context, _ int32,
+func (s *loginStoreStub) GetUserPermissionCodes(
+	_ context.Context,
+	_ int32,
 ) ([]string, error) {
 	return s.permissions, nil
 }
@@ -46,12 +47,17 @@ func (loginAuditStub) Log(context.Context, audit_usecase.Event) {}
 
 func loginTestRow() sqlc.GetUserByEmailRow {
 	return sqlc.GetUserByEmailRow{
-		ID: 7, Email: "user@example.com", Name: "Rani", IsActive: true,
-		PartnerID:    sql.NullInt32{Int32: 7, Valid: true},
-		UnitUsahaID:  sql.NullInt32{Int32: 3, Valid: true},
-		RoleCode:     sql.NullString{String: "staff", Valid: true},
-		DivisionCode: sql.NullString{String: "sales", Valid: true},
-		RoleID:       sql.NullInt32{Int32: 2, Valid: true},
+		ID:             7,
+		Email:          "user@example.com",
+		Name:           "Rani",
+		IsActive:       true,
+		RoleActive:     true,
+		DivisionActive: true,
+		PartnerID:      sql.NullInt32{Int32: 7, Valid: true},
+		UnitUsahaID:    sql.NullInt32{Int32: 3, Valid: true},
+		RoleCode:       sql.NullString{String: "staff", Valid: true},
+		DivisionCode:   sql.NullString{String: "sales", Valid: true},
+		RoleID:         sql.NullInt32{Int32: 2, Valid: true},
 	}
 }
 
@@ -191,5 +197,33 @@ func TestLoginIncludesRolePermissions(t *testing.T) {
 	claims := parseLoginClaims(t, uc, result)
 	if !slices.Equal(claims.Permissions, store.permissions) {
 		t.Fatalf("permission tidak sesuai: %v", claims.Permissions)
+	}
+}
+
+func TestLoginRejectsInactiveRole(t *testing.T) {
+	row := loginTestRow()
+	row.RoleActive = false
+	uc, _ := newLoginTestUsecase(t, row)
+
+	_, err := uc.Login(context.Background(), LoginInput{
+		Email:    "user@example.com",
+		Password: "Password123",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("akun dengan role nonaktif harus ditolak: %v", err)
+	}
+}
+
+func TestLoginRejectsInactiveDivision(t *testing.T) {
+	row := loginTestRow()
+	row.DivisionActive = false
+	uc, _ := newLoginTestUsecase(t, row)
+
+	_, err := uc.Login(context.Background(), LoginInput{
+		Email:    "user@example.com",
+		Password: "Password123",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("akun dengan divisi nonaktif harus ditolak: %v", err)
 	}
 }

@@ -8,11 +8,19 @@ import (
 	"ppl-m1-be/middleware"
 )
 
-func Mount(rg *gin.RouterGroup, uc *user_usecase.Usecase, tokens *utils.TokenMaker) {
+func Mount(
+	rg *gin.RouterGroup,
+	uc *user_usecase.Usecase,
+	tokens *utils.TokenMaker,
+	store middleware.SessionStore,
+) {
 	handler := &Handler{uc: uc}
 	rg.POST("/auth/registrations", handler.Register)
 
-	users := rg.Group("/users", middleware.Authenticate(tokens), middleware.RequireSuperAdmin())
+	users := rg.Group("/users",
+		middleware.AuthenticateCurrent(tokens, store),
+		middleware.RequireSuperAdmin(),
+	)
 	users.POST("", handler.CreateUser)
 	users.GET("", handler.ListUsers)
 	users.GET("/:id", handler.GetUser)

@@ -41,7 +41,9 @@ SELECT u.id,
        u.unit_usaha_id,
        u.role_id,
        r.code AS role_code,
-       d.code AS division_code
+       d.code AS division_code,
+       COALESCE(r.is_active, TRUE)::bool AS role_active,
+       COALESCE(d.is_active, TRUE)::bool AS division_active
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 LEFT JOIN divisions d ON d.id = u.division_id
@@ -49,17 +51,19 @@ WHERE u.email = $1
 `
 
 type GetUserByEmailRow struct {
-	ID           int32
-	Email        string
-	PasswordHash string
-	Name         string
-	IsActive     bool
-	IsSuperAdmin bool
-	PartnerID    sql.NullInt32
-	UnitUsahaID  sql.NullInt32
-	RoleID       sql.NullInt32
-	RoleCode     sql.NullString
-	DivisionCode sql.NullString
+	ID             int32
+	Email          string
+	PasswordHash   string
+	Name           string
+	IsActive       bool
+	IsSuperAdmin   bool
+	PartnerID      sql.NullInt32
+	UnitUsahaID    sql.NullInt32
+	RoleID         sql.NullInt32
+	RoleCode       sql.NullString
+	DivisionCode   sql.NullString
+	RoleActive     bool
+	DivisionActive bool
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -77,6 +81,104 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.RoleID,
 		&i.RoleCode,
 		&i.DivisionCode,
+		&i.RoleActive,
+		&i.DivisionActive,
+	)
+	return i, err
+}
+
+const getUserPermissionCodes = `-- name: GetUserPermissionCodes :many
+SELECT permission_code
+FROM (
+    SELECT rp.permission_code
+    FROM users u
+    JOIN role_permissions rp ON rp.role_id = u.role_id
+    WHERE u.id = $1::int
+
+    UNION
+
+    SELECT dp.permission_code
+    FROM users u
+    JOIN division_permissions dp ON dp.division_id = u.division_id
+    WHERE u.id = $1::int
+) AS effective_permissions
+ORDER BY permission_code
+`
+
+func (q *Queries) GetUserPermissionCodes(ctx context.Context, userID int32) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getUserPermissionCodes, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var permission_code string
+		if err := rows.Scan(&permission_code); err != nil {
+			return nil, err
+		}
+		items = append(items, permission_code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserSession = `-- name: GetUserSession :one
+SELECT
+    u.id,
+    u.name,
+    u.is_active,
+    u.is_super_admin,
+    u.partner_id,
+    u.unit_usaha_id,
+    u.role_id,
+    r.code AS role_code,
+    COALESCE(r.is_active, TRUE)::bool AS role_active,
+    u.division_id,
+    d.code AS division_code,
+    COALESCE(d.is_active, TRUE)::bool AS division_active
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE u.id = $1::int
+`
+
+type GetUserSessionRow struct {
+	ID             int32
+	Name           string
+	IsActive       bool
+	IsSuperAdmin   bool
+	PartnerID      sql.NullInt32
+	UnitUsahaID    sql.NullInt32
+	RoleID         sql.NullInt32
+	RoleCode       sql.NullString
+	RoleActive     bool
+	DivisionID     sql.NullInt32
+	DivisionCode   sql.NullString
+	DivisionActive bool
+}
+
+func (q *Queries) GetUserSession(ctx context.Context, id int32) (GetUserSessionRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserSession, id)
+	var i GetUserSessionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.IsActive,
+		&i.IsSuperAdmin,
+		&i.PartnerID,
+		&i.UnitUsahaID,
+		&i.RoleID,
+		&i.RoleCode,
+		&i.RoleActive,
+		&i.DivisionID,
+		&i.DivisionCode,
+		&i.DivisionActive,
 	)
 	return i, err
 }

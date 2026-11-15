@@ -195,3 +195,49 @@ func TestRequireDivisionAllowsSuperAdmin(t *testing.T) {
 		t.Fatalf("status seharusnya 204, didapat %d", res.Code)
 	}
 }
+
+func TestRequireRequestedDivisionRejectsOtherDivision(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	division := "sales"
+	claims := &utils.Claims{Division: &division}
+	router := gin.New()
+	router.GET("/divisions/:division/private",
+		func(c *gin.Context) {
+			c.Set(claimsKey, claims)
+			c.Next()
+		},
+		RequireRequestedDivision("division"),
+		func(c *gin.Context) {
+			c.Status(http.StatusNoContent)
+		},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/divisions/finance/private", nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status seharusnya 403, didapat %d", res.Code)
+	}
+}
+
+func TestRequireRequestedDivisionAllowsOwnDivision(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	division := "sales"
+	claims := &utils.Claims{Division: &division}
+	router := gin.New()
+	router.GET("/divisions/:division/private",
+		func(c *gin.Context) {
+			c.Set(claimsKey, claims)
+			c.Next()
+		},
+		RequireRequestedDivision("division"),
+		func(c *gin.Context) {
+			c.Status(http.StatusNoContent)
+		},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/divisions/sales/private", nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("status seharusnya 204, didapat %d", res.Code)
+	}
+}

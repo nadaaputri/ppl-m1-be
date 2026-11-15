@@ -34,13 +34,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	if !ok {
 		return
 	}
-	partnerID, ok := middleware.TargetPartnerID(c, req.PartnerID)
-	if !ok {
-		return
-	}
-	in := toAccountInput(
-		req, partnerID, middleware.GetClaims(c).UserID, c.ClientIP(),
-	)
+	in := toAccountInput(req, middleware.GetClaims(c).UserID, c.ClientIP())
 	account, err := h.uc.CreateAccount(c.Request.Context(), in)
 	if err != nil {
 		h.writeAccountError(c, err)
