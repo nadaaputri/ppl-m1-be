@@ -18,6 +18,13 @@ type createUserRequest struct {
 	UnitUsahaID *int32 `json:"unit_usaha_id"`
 }
 
+type updateUserRequest struct {
+	Name        *string `json:"name"`
+	Role        *string `json:"role"`
+	Division    *string `json:"division"`
+	UnitUsahaID *int32  `json:"unit_usaha_id"`
+}
+
 type userResponse struct {
 	ID          int32     `json:"id"`
 	Name        string    `json:"name"`
@@ -50,13 +57,27 @@ func accountFieldErrors(req createUserRequest) map[string]string {
 	if req.UnitUsahaID != nil && *req.UnitUsahaID < 1 {
 		fields["unit_usaha_id"] = "Nilai tidak valid"
 	}
+	if req.PartnerID != nil && *req.PartnerID < 1 {
+		fields["partner_id"] = "Nilai tidak valid"
+	}
 	return fields
 }
 
-func toAccountInput(req createUserRequest, partnerID, createdBy int32) user_usecase.AccountInput {
+func toAccountInput(
+	req createUserRequest,
+	createdBy int32,
+	ip string,
+) user_usecase.AccountInput {
 	return user_usecase.AccountInput{
-		PartnerID: partnerID, CreatedBy: createdBy, Name: req.Name, Email: req.Email,
-		Password: req.Password, Role: req.Role, Division: req.Division, UnitUsahaID: req.UnitUsahaID,
+		PartnerID:   req.PartnerID,
+		CreatedBy:   createdBy,
+		Name:        req.Name,
+		Email:       req.Email,
+		Password:    req.Password,
+		Role:        req.Role,
+		Division:    req.Division,
+		UnitUsahaID: req.UnitUsahaID,
+		IP:          ip,
 	}
 }
 
@@ -74,4 +95,52 @@ func toUserList(items []user_usecase.Account) []userResponse {
 		out = append(out, toUserResponse(item))
 	}
 	return out
+}
+
+func updateNameError(value *string) string {
+	if value == nil {
+		return ""
+	}
+	name := strings.TrimSpace(*value)
+	if name == "" {
+		return "Nama wajib diisi"
+	}
+	if len([]rune(name)) > 150 {
+		return "Nama maksimal 150 karakter"
+	}
+	return ""
+}
+
+func updateFieldErrors(req updateUserRequest) map[string]string {
+	fields := map[string]string{}
+	if req.Name == nil && req.Role == nil &&
+		req.Division == nil && req.UnitUsahaID == nil {
+		fields["body"] = "Minimal satu field harus diisi"
+	}
+	if msg := updateNameError(req.Name); msg != "" {
+		fields["name"] = msg
+	}
+	if req.Role != nil && !utils.CodePattern.MatchString(*req.Role) {
+		fields["role"] = "Kode Role tidak valid"
+	}
+	if req.Division != nil && !utils.CodePattern.MatchString(*req.Division) {
+		fields["division"] = "Kode Division tidak valid"
+	}
+	if req.UnitUsahaID != nil && *req.UnitUsahaID < 1 {
+		fields["unit_usaha_id"] = "Nilai tidak valid"
+	}
+	return fields
+}
+
+func toUpdateAccountInput(
+	req updateUserRequest,
+	id, actorID int32,
+	ip string,
+) user_usecase.UpdateAccountInput {
+	return user_usecase.UpdateAccountInput{
+		TargetID: id, ActorID: actorID,
+		Name: req.Name, Role: req.Role,
+		Division: req.Division, UnitUsahaID: req.UnitUsahaID,
+		IP: ip,
+	}
 }

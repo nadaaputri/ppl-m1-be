@@ -7,15 +7,16 @@ import (
 	"ppl-m1-be/internal/usecase/utils"
 )
 
-func toClaims(u sqlc.GetUserByEmailRow) utils.Claims {
+func toClaims(u sqlc.GetUserByEmailRow, permissions []string) utils.Claims {
+	if permissions == nil {
+		permissions = []string{}
+	}
 	return utils.Claims{
-		UserID:       u.ID,
-		Name:         u.Name,
-		Role:         u.RoleCode.String,
+		UserID: u.ID, Name: u.Name, Role: u.RoleCode.String,
 		Division:     stringOrNil(u.DivisionCode),
 		PartnerID:    intOrNil(u.PartnerID),
 		UnitUsahaID:  intOrNil(u.UnitUsahaID),
-		IsSuperAdmin: u.IsSuperAdmin,
+		IsSuperAdmin: u.IsSuperAdmin, Permissions: permissions,
 	}
 }
 

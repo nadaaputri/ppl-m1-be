@@ -23,6 +23,7 @@ type StatusInput struct {
 	PartnerScope *int32
 	TargetID     int32
 	Active       bool
+	IP           string
 }
 
 type AccountStatus struct {
@@ -38,7 +39,13 @@ func (u *Usecase) SetAccountStatus(ctx context.Context, in StatusInput) (Account
 	if err := checkStatusChange(in, target); err != nil {
 		return AccountStatus{}, err
 	}
-	row, err := u.store.SetAccountStatus(ctx, sqlc.SetAccountStatusParams{ID: in.TargetID, IsActive: in.Active})
+	row, err := u.store.SetAccountStatus(ctx, sqlc.SetAccountStatusParams{
+		ID:        in.TargetID,
+		PartnerID: utils.NullInt32(in.PartnerScope),
+		IsActive:  in.Active,
+		ActorID:   in.ActorID,
+		IpAddress: utils.NullText(in.IP),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return AccountStatus{}, statusConflict(in.Active)
 	}

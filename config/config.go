@@ -11,7 +11,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const minJWTSecretBytes = 32
+const (
+	minJWTSecretBytes = 32
+	sharedJWTLifetime = 8 * time.Hour
+)
 
 type Config struct {
 	AppName            string
@@ -29,45 +32,52 @@ type Config struct {
 }
 
 func Load() (Config, error) {
-	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return Config{}, fmt.Errorf("gagal membaca file .env: %w", err)
+	if err := loadDotEnv(); err != nil {
+		return Config{}, err
 	}
-
-	cfg := Config{
-		AppName:    os.Getenv("APP_NAME"),
-		AppPort:    os.Getenv("APP_PORT"),
-		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     os.Getenv("DB_PORT"),
-		DBUser:     os.Getenv("DB_USER"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		DBName:     os.Getenv("DB_NAME"),
-		DBSSLMode:  os.Getenv("DB_SSLMODE"),
+	cfg := readConfig()
+	if err := validateDatabase(cfg); err != nil {
+		return Config{}, err
 	}
-
-	if cfg.AppPort == "" {
-		cfg.AppPort = "8080"
-	}
-
-	if cfg.DBSSLMode == "" {
-		cfg.DBSSLMode = "disable"
-	}
-
-	if cfg.DBHost == "" || cfg.DBPort == "" ||
-		cfg.DBUser == "" || cfg.DBName == "" {
-		return Config{}, fmt.Errorf("konfigurasi database belum lengkap")
-	}
-
 	if err := loadJWT(&cfg); err != nil {
 		return Config{}, err
 	}
-
 	loadCORS(&cfg)
-
 	if err := loadProxies(&cfg); err != nil {
 		return Config{}, err
 	}
-
 	return cfg, nil
+}
+
+func loadDotEnv() error {
+	err := godotenv.Load()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("gagal membaca file .env: %w", err)
+	}
+	return nil
+}
+
+func readConfig() Config {
+	cfg := Config{
+		AppName: os.Getenv("APP_NAME"), AppPort: os.Getenv("APP_PORT"),
+		DBHost: os.Getenv("DB_HOST"), DBPort: os.Getenv("DB_PORT"),
+		DBUser: os.Getenv("DB_USER"), DBPassword: os.Getenv("DB_PASSWORD"),
+		DBName: os.Getenv("DB_NAME"), DBSSLMode: os.Getenv("DB_SSLMODE"),
+	}
+	if cfg.AppPort == "" {
+		cfg.AppPort = "8080"
+	}
+	if cfg.DBSSLMode == "" {
+		cfg.DBSSLMode = "disable"
+	}
+	return cfg
+}
+
+func validateDatabase(cfg Config) error {
+	if cfg.DBHost == "" || cfg.DBPort == "" || cfg.DBUser == "" || cfg.DBName == "" {
+		return fmt.Errorf("konfigurasi database belum lengkap")
+	}
+	return nil
 }
 
 func loadJWT(cfg *Config) error {
@@ -77,11 +87,11 @@ func loadJWT(cfg *Config) error {
 	}
 
 	ttl, err := time.ParseDuration(os.Getenv("JWT_EXPIRES_IN"))
-	if err != nil || ttl <= 0 {
-		return fmt.Errorf("JWT_EXPIRES_IN tidak valid, contoh: 24h")
+	if err != nil || ttl != sharedJWTLifetime {
+		return fmt.Errorf("JWT_EXPIRES_IN harus 8h sesuai Panduan API Bersama")
 	}
 
-	cfg.JWTExpiresIn = ttl
+	cfg.JWTExpiresIn = sharedJWTLifetime
 	return nil
 }
 

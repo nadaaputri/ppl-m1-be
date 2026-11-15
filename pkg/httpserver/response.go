@@ -25,6 +25,7 @@ const (
 	CodeUserAlreadyInactive   = "USER_ALREADY_INACTIVE"
 	CodeUserReferenceInactive = "USER_REFERENCE_INACTIVE"
 	CodeOldPasswordInvalid    = "OLD_PASSWORD_INVALID"
+	CodeDatabaseUnavailable   = "DATABASE_UNAVAILABLE"
 )
 
 func Success(c *gin.Context, status int, data any) {

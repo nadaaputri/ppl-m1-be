@@ -8,14 +8,14 @@ import (
 )
 
 func (u *Usecase) List(ctx context.Context, in ListInput) (ListResult, error) {
-	partner, active := utils.NullInt32(in.PartnerID), utils.NullBool(in.IsActive)
-	total, err := u.store.CountDivisions(ctx, sqlc.CountDivisionsParams{PartnerID: partner, IsActive: active})
+	active := utils.NullBool(in.IsActive)
+	total, err := u.store.CountDivisions(ctx, active)
 	if err != nil {
 		return ListResult{}, err
 	}
 	rows, err := u.store.ListDivisions(ctx, sqlc.ListDivisionsParams{
-		PartnerID: partner, IsActive: active,
-		PageLimit: int32(in.PerPage), PageOffset: int32((in.Page - 1) * in.PerPage),
+		IsActive: active, PageLimit: int32(in.PerPage),
+		PageOffset: int32((in.Page - 1) * in.PerPage),
 	})
 	if err != nil {
 		return ListResult{}, err

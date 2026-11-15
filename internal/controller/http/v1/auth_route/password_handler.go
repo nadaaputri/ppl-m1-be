@@ -36,6 +36,15 @@ func bindChangePassword(c *gin.Context) (changePasswordRequest, bool) {
 		httpserver.BindError(c, err)
 		return req, false
 	}
+	fields := changePasswordFieldErrors(req)
+	if len(fields) > 0 {
+		httpserver.FailFields(c, httpserver.MsgValidation, fields)
+		return req, false
+	}
+	return req, true
+}
+
+func changePasswordFieldErrors(req changePasswordRequest) map[string]string {
 	fields := map[string]string{}
 	if req.OldPassword == "" {
 		fields["old_password"] = "Isian ini wajib diisi"
@@ -43,11 +52,12 @@ func bindChangePassword(c *gin.Context) (changePasswordRequest, bool) {
 	if req.NewPassword == "" {
 		fields["new_password"] = "Isian ini wajib diisi"
 	}
-	if len(fields) > 0 {
-		httpserver.FailFields(c, httpserver.MsgValidation, fields)
-		return req, false
+	if req.ConfirmPassword == "" {
+		fields["confirm_password"] = "Isian ini wajib diisi"
+	} else if req.ConfirmPassword != req.NewPassword {
+		fields["confirm_password"] = "Konfirmasi kata sandi baru tidak cocok"
 	}
-	return req, true
+	return fields
 }
 
 func (h *Handler) writePasswordError(c *gin.Context, err error) {

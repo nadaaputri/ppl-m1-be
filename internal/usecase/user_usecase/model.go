@@ -19,13 +19,15 @@ var (
 type userStore interface {
 	GetRoleIDByName(ctx context.Context, roleName string) (int32, error)
 	CreateUser(ctx context.Context, arg sqlc.CreateUserParams) (sqlc.CreateUserRow, error)
-	GetPartnerRoleID(ctx context.Context, arg sqlc.GetPartnerRoleIDParams) (int32, error)
-	GetPartnerDivisionID(ctx context.Context, arg sqlc.GetPartnerDivisionIDParams) (int32, error)
-	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.User, error)
+	GetGlobalRoleIDByCode(ctx context.Context, code string) (int32, error)
+	GetGlobalDivisionIDByCode(ctx context.Context, code string) (int32, error)
+	CreateAccount(ctx context.Context, arg sqlc.CreateAccountParams) (sqlc.CreateAccountRow, error)
 	CountAccounts(ctx context.Context, arg sqlc.CountAccountsParams) (int64, error)
 	ListAccounts(ctx context.Context, arg sqlc.ListAccountsParams) ([]sqlc.ListAccountsRow, error)
 	GetAccountForStatus(ctx context.Context, arg sqlc.GetAccountForStatusParams) (sqlc.GetAccountForStatusRow, error)
 	SetAccountStatus(ctx context.Context, arg sqlc.SetAccountStatusParams) (sqlc.SetAccountStatusRow, error)
+	GetAccountByID(ctx context.Context, id int32) (sqlc.GetAccountByIDRow, error)
+	UpdateAccount(ctx context.Context, arg sqlc.UpdateAccountParams) (sqlc.UpdateAccountRow, error)
 }
 
 type ValidationError struct {
@@ -37,7 +39,7 @@ func (e *ValidationError) Error() string {
 }
 
 type AccountInput struct {
-	PartnerID   int32
+	PartnerID   *int32
 	CreatedBy   int32
 	Name        string
 	Email       string
@@ -45,6 +47,7 @@ type AccountInput struct {
 	Role        string
 	Division    string
 	UnitUsahaID *int32
+	IP          string
 }
 
 type Account struct {
@@ -74,6 +77,16 @@ type AccountListInput struct {
 type AccountListResult struct {
 	Items []Account
 	Total int
+}
+
+type UpdateAccountInput struct {
+	ActorID     int32
+	TargetID    int32
+	Name        *string
+	Role        *string
+	Division    *string
+	UnitUsahaID *int32
+	IP          string
 }
 
 type RegisterInput struct {

@@ -34,12 +34,10 @@ func (h *Handler) Create(c *gin.Context) {
 	if !ok {
 		return
 	}
-	partnerID, ok := middleware.TargetPartnerID(c, req.PartnerID)
-	if !ok {
-		return
-	}
 	div, err := h.uc.Create(c.Request.Context(), division_usecase.CreateInput{
-		PartnerID: partnerID, Code: req.Code, Name: req.Name,
+		Code: req.Code, Name: req.Name,
+		ActorID: middleware.GetClaims(c).UserID,
+		IP:      c.ClientIP(),
 	})
 	if err != nil {
 		h.writeError(c, err)
@@ -53,12 +51,10 @@ func listInput(c *gin.Context) (division_usecase.ListInput, bool) {
 	if !ok {
 		return division_usecase.ListInput{}, false
 	}
-	partnerID, ok := middleware.PartnerFilter(c)
-	if !ok {
-		return division_usecase.ListInput{}, false
-	}
 	active, ok := httpserver.QueryBool(c, "is_active")
-	return division_usecase.ListInput{PartnerID: partnerID, IsActive: active, Page: page, PerPage: perPage}, ok
+	return division_usecase.ListInput{
+		IsActive: active, Page: page, PerPage: perPage,
+	}, ok
 }
 
 func bindCreate(c *gin.Context) (createRequest, bool) {

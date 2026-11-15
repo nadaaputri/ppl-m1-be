@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"database/sql"
-
 	"github.com/gin-gonic/gin"
 
 	"ppl-m1-be/internal/controller/http/v1/auth_route"
@@ -12,7 +10,12 @@ import (
 	"ppl-m1-be/internal/usecase/utils"
 )
 
-func mountAuth(api *gin.RouterGroup, db *sql.DB, tokens *utils.TokenMaker) {
-	uc := auth_usecase.New(sqlc.New(db), tokens, audit_usecase.NewStdLogger())
-	auth_route.Mount(api, uc, tokens)
+func mountAuth(
+	api *gin.RouterGroup,
+	store *sqlc.Queries,
+	tokens *utils.TokenMaker,
+	audit audit_usecase.Logger,
+) {
+	uc := auth_usecase.New(store, tokens, audit)
+	auth_route.Mount(api, uc, tokens, store)
 }

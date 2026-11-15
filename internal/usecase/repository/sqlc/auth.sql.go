@@ -39,8 +39,11 @@ SELECT u.id,
        u.is_super_admin,
        u.partner_id,
        u.unit_usaha_id,
+       u.role_id,
        r.code AS role_code,
-       d.code AS division_code
+       d.code AS division_code,
+       COALESCE(r.is_active, TRUE)::bool AS role_active,
+       COALESCE(d.is_active, TRUE)::bool AS division_active
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 LEFT JOIN divisions d ON d.id = u.division_id
@@ -48,16 +51,19 @@ WHERE u.email = $1
 `
 
 type GetUserByEmailRow struct {
-	ID           int32
-	Email        string
-	PasswordHash string
-	Name         string
-	IsActive     bool
-	IsSuperAdmin bool
-	PartnerID    sql.NullInt32
-	UnitUsahaID  sql.NullInt32
-	RoleCode     sql.NullString
-	DivisionCode sql.NullString
+	ID             int32
+	Email          string
+	PasswordHash   string
+	Name           string
+	IsActive       bool
+	IsSuperAdmin   bool
+	PartnerID      sql.NullInt32
+	UnitUsahaID    sql.NullInt32
+	RoleID         sql.NullInt32
+	RoleCode       sql.NullString
+	DivisionCode   sql.NullString
+	RoleActive     bool
+	DivisionActive bool
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -72,29 +78,158 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.IsSuperAdmin,
 		&i.PartnerID,
 		&i.UnitUsahaID,
+		&i.RoleID,
 		&i.RoleCode,
 		&i.DivisionCode,
+		&i.RoleActive,
+		&i.DivisionActive,
+	)
+	return i, err
+}
+
+const getUserPermissionCodes = `-- name: GetUserPermissionCodes :many
+SELECT permission_code
+FROM (
+    SELECT rp.permission_code
+    FROM users u
+    JOIN role_permissions rp ON rp.role_id = u.role_id
+    WHERE u.id = $1::int
+
+    UNION
+
+    SELECT dp.permission_code
+    FROM users u
+    JOIN division_permissions dp ON dp.division_id = u.division_id
+    WHERE u.id = $1::int
+) AS effective_permissions
+ORDER BY permission_code
+`
+
+func (q *Queries) GetUserPermissionCodes(ctx context.Context, userID int32) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getUserPermissionCodes, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var permission_code string
+		if err := rows.Scan(&permission_code); err != nil {
+			return nil, err
+		}
+		items = append(items, permission_code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserSession = `-- name: GetUserSession :one
+SELECT
+    u.id,
+    u.name,
+    u.is_active,
+    u.is_super_admin,
+    u.partner_id,
+    u.unit_usaha_id,
+    u.role_id,
+    r.code AS role_code,
+    COALESCE(r.is_active, TRUE)::bool AS role_active,
+    u.division_id,
+    d.code AS division_code,
+    COALESCE(d.is_active, TRUE)::bool AS division_active
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+LEFT JOIN divisions d ON d.id = u.division_id
+WHERE u.id = $1::int
+`
+
+type GetUserSessionRow struct {
+	ID             int32
+	Name           string
+	IsActive       bool
+	IsSuperAdmin   bool
+	PartnerID      sql.NullInt32
+	UnitUsahaID    sql.NullInt32
+	RoleID         sql.NullInt32
+	RoleCode       sql.NullString
+	RoleActive     bool
+	DivisionID     sql.NullInt32
+	DivisionCode   sql.NullString
+	DivisionActive bool
+}
+
+func (q *Queries) GetUserSession(ctx context.Context, id int32) (GetUserSessionRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserSession, id)
+	var i GetUserSessionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.IsActive,
+		&i.IsSuperAdmin,
+		&i.PartnerID,
+		&i.UnitUsahaID,
+		&i.RoleID,
+		&i.RoleCode,
+		&i.RoleActive,
+		&i.DivisionID,
+		&i.DivisionCode,
+		&i.DivisionActive,
 	)
 	return i, err
 }
 
 const updatePassword = `-- name: UpdatePassword :one
-UPDATE users
-SET password_hash = $1::text,
-    updated_at = NOW()
-WHERE id = $2::int
-  AND password_hash = $3::text
-RETURNING updated_at
+WITH updated AS (
+    UPDATE users
+    SET password_hash = $1::text,
+        updated_at = NOW()
+    WHERE id = $2::int
+      AND password_hash = $3::text
+    RETURNING id, partner_id, name, email, updated_at
+),
+logged AS (
+    INSERT INTO audit_logs (
+        partner_id, user_id, action, resource, resource_id,
+        old_value, new_value, ip_address, actor_name, actor_email
+    )
+    SELECT
+        updated.partner_id,
+        updated.id,
+        'PASSWORD_CHANGED',
+        'users',
+        updated.id,
+        NULL::jsonb,
+        NULL::jsonb,
+        $4::varchar(45),
+        updated.name,
+        updated.email
+    FROM updated
+    RETURNING id
+)
+SELECT updated.updated_at
+FROM updated
+CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
 
 type UpdatePasswordParams struct {
-	NewHash string
-	ID      int32
-	OldHash string
+	NewHash   string
+	ID        int32
+	OldHash   string
+	IpAddress sql.NullString
 }
 
 func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (time.Time, error) {
-	row := q.db.QueryRowContext(ctx, updatePassword, arg.NewHash, arg.ID, arg.OldHash)
+	row := q.db.QueryRowContext(ctx, updatePassword,
+		arg.NewHash,
+		arg.ID,
+		arg.OldHash,
+		arg.IpAddress,
+	)
 	var updated_at time.Time
 	err := row.Scan(&updated_at)
 	return updated_at, err
