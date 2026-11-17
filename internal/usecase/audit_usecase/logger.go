@@ -79,14 +79,14 @@ func auditJSON(value any) (sql.NullString, error) {
 
 func auditParams(e Event, oldValue, newValue sql.NullString) sqlc.CreateAuditLogParams {
 	return sqlc.CreateAuditLogParams{
-		PartnerID: utils.NullInt32(e.PartnerID),
-		UserID:    nullableID(e.UserID),
-		Action:    e.Type,
-		Resource:  e.Resource,
+		PartnerID:  utils.NullInt32(e.PartnerID),
+		UserID:     nullableID(e.UserID),
+		Action:     e.Type,
+		Resource:   e.Resource,
 		ResourceID: utils.NullInt32(e.ResourceID),
-		OldValue: oldValue, NewValue: newValue,
-		IpAddress: utils.NullText(e.IP),
-		ActorName: utils.NullText(e.ActorName),
+		OldValue:   oldValue, NewValue: newValue,
+		IpAddress:  utils.NullText(e.IP),
+		ActorName:  utils.NullText(e.ActorName),
 		ActorEmail: utils.NullText(e.Email),
 	}
 }
@@ -97,7 +97,8 @@ func nullableID(id int32) sql.NullInt32 {
 
 func resourceForAction(action string) string {
 	switch {
-	case strings.HasPrefix(action, "LOGIN_"):
+	case strings.HasPrefix(action, "LOGIN_"),
+		action == "LOGOUT":
 		return "auth"
 	case strings.HasPrefix(action, "PASSWORD_"),
 		strings.HasPrefix(action, "USER_"),

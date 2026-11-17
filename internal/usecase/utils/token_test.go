@@ -75,3 +75,22 @@ func TestTokenRejectsWrongAlgorithm(t *testing.T) {
 		t.Fatal("algoritma selain HS256 seharusnya ditolak")
 	}
 }
+
+func TestTokenIDIsUnique(t *testing.T) {
+	maker := tokenTestMaker("araya", 8*time.Hour)
+	seen := map[string]bool{}
+	for i := 0; i < 50; i++ {
+		raw, err := maker.Generate(Claims{UserID: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := maker.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.ID == "" || seen[got.ID] {
+			t.Fatalf("jti kosong atau ganda: %q", got.ID)
+		}
+		seen[got.ID] = true
+	}
+}
