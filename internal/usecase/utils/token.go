@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -33,11 +35,24 @@ func (m *TokenMaker) TTL() time.Duration {
 }
 
 func (m *TokenMaker) Generate(c Claims) (string, error) {
+	jti, err := newTokenID()
+	if err != nil {
+		return "", err
+	}
 	now := time.Now()
+	c.ID = jti
 	c.Issuer = m.issuer
 	c.IssuedAt = jwt.NewNumericDate(now)
 	c.ExpiresAt = jwt.NewNumericDate(now.Add(m.ttl))
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(m.secret)
+}
+
+func newTokenID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func (m *TokenMaker) Parse(raw string) (*Claims, error) {

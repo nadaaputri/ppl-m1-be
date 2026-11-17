@@ -15,6 +15,7 @@ type userStore interface {
 	GetAccountCredentials(ctx context.Context, id int32) (sqlc.GetAccountCredentialsRow, error)
 	UpdatePassword(ctx context.Context, arg sqlc.UpdatePasswordParams) (time.Time, error)
 	GetUserPermissionCodes(ctx context.Context, userID int32) ([]string, error)
+	RevokeToken(ctx context.Context, arg sqlc.RevokeTokenParams) error
 }
 
 type LoginInput struct {
