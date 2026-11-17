@@ -69,6 +69,7 @@ model User {
   createdBy    User?     @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers User[]    @relation("UserCreator")
   auditLogs    AuditLog[]
+  revokedTokens RevokedToken[]
 
   @@index([partnerId])
   @@map("users")
@@ -129,4 +130,16 @@ model AuditLog {
   @@index([partnerId, createdAt])
   @@index([resource, resourceId])
   @@map("audit_logs")
+}
+
+model RevokedToken {
+  jti       String   @id @db.VarChar(64)
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime @default(now()) @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("revoked_tokens")
 }
