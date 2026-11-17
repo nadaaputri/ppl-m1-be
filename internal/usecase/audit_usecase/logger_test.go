@@ -31,6 +31,12 @@ func (*auditStoreStub) ListAuditLogs(
 	return nil, nil
 }
 
+func TestResourceForLogoutIsAuth(t *testing.T) {
+	if got := resourceForAction("LOGOUT"); got != "auth" {
+		t.Fatalf("resource LOGOUT seharusnya auth, didapat %q", got)
+	}
+}
+
 func TestLogPersistsAuditFields(t *testing.T) {
 	store := &auditStoreStub{}
 	uc := New(store)

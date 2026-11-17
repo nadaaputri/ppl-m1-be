@@ -19,6 +19,13 @@ type loginStoreStub struct {
 	err         error
 	email       string
 	permissions []string
+	revoked     sqlc.RevokeTokenParams
+	revokeErr   error
+}
+
+func (s *loginStoreStub) RevokeToken(_ context.Context, arg sqlc.RevokeTokenParams) error {
+	s.revoked = arg
+	return s.revokeErr
 }
 
 func (s *loginStoreStub) GetUserByEmail(_ context.Context, email string) (sqlc.GetUserByEmailRow, error) {

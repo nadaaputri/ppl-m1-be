@@ -21,6 +21,7 @@ const RolePartner = "partner"
 type SessionStore interface {
 	GetUserSession(context.Context, int32) (sqlc.GetUserSessionRow, error)
 	GetUserPermissionCodes(context.Context, int32) ([]string, error)
+	IsTokenRevoked(context.Context, string) (bool, error)
 }
 
 func Authenticate(tokens *utils.TokenMaker) gin.HandlerFunc {
@@ -38,7 +39,7 @@ func authenticate(tokens *utils.TokenMaker, store SessionStore) gin.HandlerFunc 
 			unauthenticated(c)
 			return
 		}
-		if store != nil && !refreshSession(c, claims, store) {
+		if store != nil && !validateStored(c, claims, store) {
 			return
 		}
 		c.Set(claimsKey, claims)
@@ -218,4 +219,28 @@ func serviceUnavailable(c *gin.Context) {
 	httpserver.Fail(c, http.StatusServiceUnavailable, httpserver.CodeDatabaseUnavailable,
 		"Database tidak dapat diakses")
 	c.Abort()
+}
+
+func validateStored(c *gin.Context, claims *utils.Claims, store SessionStore) bool {
+	if !notRevoked(c, claims, store) {
+		return false
+	}
+	return refreshSession(c, claims, store)
+}
+
+func notRevoked(c *gin.Context, claims *utils.Claims, store SessionStore) bool {
+	if claims.ID == "" {
+		unauthenticated(c)
+		return false
+	}
+	revoked, err := store.IsTokenRevoked(c.Request.Context(), claims.ID)
+	if err != nil {
+		serviceUnavailable(c)
+		return false
+	}
+	if revoked {
+		unauthenticated(c)
+		return false
+	}
+	return true
 }

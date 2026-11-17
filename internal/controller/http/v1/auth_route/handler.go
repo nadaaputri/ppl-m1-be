@@ -50,5 +50,15 @@ func (h *Handler) Me(c *gin.Context) {
 }
 
 func (h *Handler) Logout(c *gin.Context) {
+	claims := middleware.GetClaims(c)
+	err := h.uc.Logout(c.Request.Context(), auth_usecase.LogoutInput{
+		UserID: claims.UserID, Name: claims.Name, PartnerID: claims.PartnerID,
+		TokenID: claims.ID, ExpiresAt: claims.ExpiresAt.Time, IP: c.ClientIP(),
+	})
+	if err != nil {
+		slog.Error("logout gagal", "error", err)
+		httpserver.Fail(c, http.StatusInternalServerError, httpserver.CodeInternal, "Terjadi kesalahan pada server")
+		return
+	}
 	httpserver.Success(c, http.StatusOK, nil)
 }

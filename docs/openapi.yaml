@@ -185,9 +185,13 @@ paths:
       tags: [Authentication]
       summary: Logout pengguna
       description: |
-        Endpoint mengembalikan respons sukses untuk menyelesaikan alur logout klien.
-        Implementasi saat ini tidak menyimpan denylist atau mencabut JWT di server.
-        Token tetap dapat diverifikasi sampai masa berlakunya berakhir.
+        Mencabut JWT yang dipakai pada request ini di server (denylist berdasarkan klaim jti
+        sampai token kedaluwarsa) dan mencatat aksi LOGOUT di audit log.
+        Setelah logout, token yang sama ditolak 401 di semua endpoint M1.
+        Token dari sesi lain milik pengguna yang sama tidak ikut dicabut.
+        Catatan integrasi: modul lain yang memverifikasi JWT sendiri tidak membaca denylist M1,
+        sehingga token itu masih bisa diterima modul tersebut sampai exp kecuali modul
+        memanggil GET /me.
       operationId: logout
       security:
         - BearerAuth: []
@@ -203,6 +207,10 @@ paths:
                 data: null
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
 
   /me:
     get:
@@ -212,6 +220,7 @@ paths:
         Mengembalikan klaim profil dari JWT yang telah divalidasi.
         Field division, partner_id, dan unit_usaha_id dapat bernilai null.
         Respons profil ini tidak mengembalikan array permissions.
+        Token yang sudah dicabut melalui logout ditolak dengan 401.
       operationId: getCurrentUser
       security:
         - BearerAuth: []
@@ -920,8 +929,7 @@ paths:
       description: |
         Endpoint ditujukan untuk pengguna dengan role partner dan partner_id pada JWT.
         Data dibatasi ke partner_id milik token. Pengguna tanpa partner_id ditolak.
-        Pada implementasi saat ini route memeriksa role partner; permission m1.audit.read
-        belum dipasang sebagai middleware pada route ini.
+        Route memeriksa role partner dan permission m1.audit.read.
       operationId: listPartnerAuditLogs
       security:
         - BearerAuth: []
@@ -1657,7 +1665,7 @@ components:
                 email: Format email tidak valid
 
     Unauthenticated:
-      description: Token tidak ada, tidak valid, atau kedaluwarsa
+      description: Token tidak ada, tidak valid, kedaluwarsa, atau sudah dicabut melalui logout
       content:
         application/json:
           schema:

@@ -71,10 +71,10 @@ bahwa seluruh acceptance criteria telah selesai.
                           authorization                
 
   M1-US2 --- Audit log    Tabel audit log, pencatatan  Route audit partner
-                          aktivitas penting, endpoint  memeriksa role partner;
-                          audit log partner dan        middleware permission
-                          platform, pagination, urutan khusus audit belum
-                          terbaru lebih dahulu         dipasang.
+                          aktivitas penting, endpoint  memeriksa role partner
+                          audit log partner dan        dan permission
+                          platform, pagination, urutan `m1.audit.read`.
+                          terbaru lebih dahulu
 
   M1-US3 --- Pengelolaan  Create, list, detail,        Route pengelolaan akun
   akun                    update, aktivasi, dan        saat ini dibatasi untuk
@@ -408,6 +408,10 @@ Berdasarkan Prisma schema dan migration, entitas utama M1 mencakup:
 
   `audit_logs`                        Riwayat aktivitas dan perubahan
                                       data.
+
+  `revoked_tokens`                    Daftar jti token yang dicabut saat
+                                      logout, dibersihkan setelah
+                                      kedaluwarsa.
   -----------------------------------------------------------------------
 
 ID pada tabel inti menggunakan integer. `partner_id` dan `unit_usaha_id`
@@ -457,6 +461,15 @@ data tanpa meninjau dampaknya terlebih dahulu.
 7.  Klien mengirim JWT pada request terlindungi melalui header
     `Authorization`.
 
+### Logout dan pencabutan token
+
+-   Klien memanggil `POST /auth/sessions/logout` dengan Bearer token.
+-   M1 menyimpan `jti` dan `exp` token di `revoked_tokens`, lalu
+    mencatat audit `LOGOUT`.
+-   Baris yang sudah kedaluwarsa dihapus otomatis pada setiap logout.
+-   Request berikutnya dengan token yang sama dijawab 401.
+-   Token tanpa `jti` (terbit sebelum fitur ini) ditolak.
+
 ### Klaim JWT
 
 Token yang dibuat `internal/usecase/utils/token.go` memuat klaim:
@@ -474,6 +487,7 @@ Token yang dibuat `internal/usecase/utils/token.go` memuat klaim:
   `iss`              Issuer dari `APP_NAME`.
   `iat`              Waktu token diterbitkan.
   `exp`              Waktu kedaluwarsa, 8 jam setelah token diterbitkan.
+  `jti`              ID unik token, dipakai untuk pencabutan saat logout.
 
 Token ditandatangani dengan HS256. Modul lain harus menggunakan kontrak
 secret/validasi token yang disepakati bersama.
@@ -491,7 +505,13 @@ Middleware yang tersedia pada source code:
   -----------------------------------------------------------------------
   Middleware                          Fungsi
   ----------------------------------- -----------------------------------
-  `Authenticate`                      Memvalidasi JWT Bearer.
+  `Authenticate`                      Memvalidasi JWT tanpa membaca
+                                      database. Tidak dipakai route M1.
+
+  `AuthenticateCurrent`               Memvalidasi JWT, menolak token yang
+                                      sudah dicabut, lalu membaca ulang
+                                      status akun, role, division, dan
+                                      permission dari database.
 
   `RequireRole`                       Membatasi route berdasarkan role;
                                       Super Admin dilewatkan oleh helper
@@ -511,11 +531,11 @@ Middleware yang tersedia pada source code:
   -----------------------------------------------------------------------
   Route                               Pembatasan pada router saat ini
   ----------------------------------- -----------------------------------
-  `/auth/sessions/logout`             JWT valid.
+  `/auth/sessions/logout`             JWT valid dan belum dicabut
 
-  `/me`                               JWT valid.
+  `/me`                               JWT valid dan belum dicabut
 
-  `/auth/change-password`             JWT valid.
+  `/auth/change-password`             JWT valid dan belum dicabut
 
   `/users` dan turunannya             JWT valid dan Super Admin.
 
@@ -525,9 +545,8 @@ Middleware yang tersedia pada source code:
 
   `/divisions`                        JWT valid dan Super Admin.
 
-  `/audit-logs`                       JWT valid dan role partner; data
-                                      dibatasi berdasarkan `partner_id`
-                                      token.
+  `/audit-logs`                       JWT valid, role partner, dan
+                                      permission `m1.audit.read`.
 
   `/platform/audit-logs`              JWT valid dan Super Admin.
   -----------------------------------------------------------------------
@@ -542,12 +561,9 @@ Keterangan berikut menggambarkan source code yang diperiksa:
 -   Login saat ini mengambil permission dari `role_permissions`. Tabel
     `division_permissions` ada pada schema, tetapi belum digunakan dalam
     query login yang diperiksa.
--   Middleware `Authenticate` memvalidasi signature, issuer, dan expiry
-    JWT. Middleware tersebut belum mengambil ulang status akun dari
-    database pada setiap request.
--   Akibatnya, akun yang dinonaktifkan setelah token diterbitkan dapat
-    tetap memakai token lama sampai token kedaluwarsa pada route yang
-    hanya menggunakan `Authenticate`.
+-   Route M1 memakai `AuthenticateCurrent`, yang membaca ulang akun,
+    role, division, dan permission pada setiap request. Akun atau role
+    nonaktif ditolak walau token belum kedaluwarsa.
 -   Perubahan role atau permission setelah token diterbitkan tidak
     otomatis memperbarui klaim token yang sudah dimiliki pengguna.
     Pengguna perlu login kembali untuk memperoleh token baru.
@@ -592,9 +608,11 @@ Base path seluruh resource M1:
   POST              `/auth/login`             Publik            Login dan
                                                                 menerbitkan JWT.
 
-  POST              `/auth/sessions/logout`   Bearer            Menyelesaikan
-                                                                alur logout di
-                                                                klien.
+  POST              `/auth/sessions/logout`   JWT valid dan       Mencabut JWT
+                                                belum dicabut      yang dipakai
+                                                                   di server dan
+                                                                   mencatat audit
+                                                                   LOGOUT.
 
   GET               `/me`                     Bearer            Mendapatkan
                                                                 profil pengguna
@@ -795,9 +813,8 @@ Kedua endpoint mendukung `page` dan `per_page`. Data diurutkan dari
 waktu terbaru (`created_at DESC`) dan ID terbesar lebih dahulu untuk
 timestamp yang sama.
 
-Pada implementasi saat ini, route `/audit-logs` memeriksa role partner
-dan scope partner. Permission `m1.audit.read` belum dipasang sebagai
-middleware pada route tersebut.
+Pada implementasi saat ini, route `/audit-logs` memeriksa role partner,
+scope partner, dan permission `m1.audit.read`.
 
 ## Format Request dan Response
 
@@ -957,7 +974,8 @@ Informasi yang disediakan oleh model audit:
 
 Aktivitas yang dicatat pada implementasi mencakup login berhasil/gagal,
 perubahan kata sandi, pembuatan dan perubahan akun, perubahan status
-akun, pembuatan role, penetapan permission role, dan pembuatan division.
+akun, pembuatan role, penetapan permission role, pembuatan division,
+dan logout.
 
 Password, JWT, dan secret tidak boleh dimasukkan ke nilai audit.
 
@@ -1060,36 +1078,29 @@ aplikasi menggunakan `APP_PORT`.
 Bagian ini penting agar dokumentasi tidak dianggap menyatakan fitur yang
 belum ada.
 
-1.  **Token lama setelah deaktivasi:** middleware autentikasi saat ini
-    memvalidasi JWT, tetapi tidak membaca ulang status akun dari
-    database pada setiap request. Akun nonaktif ditolak saat login,
-    tetapi token yang sudah diterbitkan masih dapat berlaku sampai
-    `exp`.
-2.  **Pembaruan klaim:** perubahan role, division, atau permission tidak
+1.  **Pembaruan klaim:** perubahan role, division, atau permission tidak
     mengubah token yang sudah diterbitkan. Klaim baru diperoleh pada
     login berikutnya.
-3.  **Permission route:** permission role dimasukkan ke JWT, dan helper
+2.  **Permission route:** permission role dimasukkan ke JWT, dan helper
     `RequirePermission` tersedia. Namun pemasangan middleware permission
     pada seluruh endpoint belum selesai.
-4.  **Permission division:** tabel `division_permissions` tersedia pada
+3.  **Permission division:** tabel `division_permissions` tersedia pada
     schema, tetapi query login saat ini hanya mengambil permission dari
     `role_permissions`.
-5.  **Pembatasan division:** helper `RequireDivision` tersedia, tetapi
+4.  **Pembatasan division:** helper `RequireDivision` tersedia, tetapi
     belum dipasang pada seluruh route bisnis yang membutuhkan pembatasan
     division.
-6.  **Audit partner:** endpoint `/audit-logs` menggunakan pemeriksaan
-    role partner dan partner scope. Permission `m1.audit.read` belum
-    dipakai sebagai middleware route.
-7.  **Role:** endpoint yang tersedia hanya daftar, pembuatan, melihat
+5.  **Role:** endpoint yang tersedia hanya daftar, pembuatan, melihat
     permission role, dan mengganti permission role. Update/delete/status
     role belum tersedia.
-8.  **Division:** endpoint yang tersedia hanya daftar dan pembuatan
+6.  **Division:** endpoint yang tersedia hanya daftar dan pembuatan
     division. Update/delete/status division belum tersedia.
-9.  **Integrasi M3:** endpoint server-to-server untuk provisioning akun
+7.  **Integrasi M3:** endpoint server-to-server untuk provisioning akun
     Partner Admin dan sinkronisasi status partner belum tersedia pada
     router saat ini.
-10. **Logout:** endpoint logout belum mencabut JWT di server; token
-    berlaku sampai masa kedaluwarsa.
+8.  **Pencabutan token hanya berlaku di M1.** Modul lain yang memverifikasi
+    JWT sendiri tetap menerima token yang sudah di-logout sampai `exp`,
+    kecuali memanggil `GET /me`.
 
 ## Acuan
 

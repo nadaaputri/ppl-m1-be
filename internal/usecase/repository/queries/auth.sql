@@ -89,3 +89,20 @@ FROM (
     WHERE u.id = sqlc.arg(user_id)::int
 ) AS effective_permissions
 ORDER BY permission_code;
+
+-- name: RevokeToken :exec
+WITH purged AS (
+    DELETE FROM revoked_tokens WHERE expires_at < NOW()
+)
+INSERT INTO revoked_tokens (jti, user_id, expires_at)
+VALUES (
+    sqlc.arg(jti)::varchar(64),
+    sqlc.arg(user_id)::int,
+    sqlc.arg(expires_at)::timestamptz
+)
+ON CONFLICT (jti) DO NOTHING;
+
+-- name: IsTokenRevoked :one
+SELECT EXISTS (
+    SELECT 1 FROM revoked_tokens WHERE jti = sqlc.arg(jti)::varchar(64)
+)::bool;

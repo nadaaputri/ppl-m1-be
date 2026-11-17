@@ -48,6 +48,13 @@ type Permission struct {
 	Description string
 }
 
+type RevokedToken struct {
+	Jti       string
+	UserID    int32
+	ExpiresAt time.Time
+	RevokedAt time.Time
+}
+
 type Role struct {
 	Name        string
 	ID          int32

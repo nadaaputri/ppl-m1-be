@@ -183,6 +183,43 @@ func (q *Queries) GetUserSession(ctx context.Context, id int32) (GetUserSessionR
 	return i, err
 }
 
+const isTokenRevoked = `-- name: IsTokenRevoked :one
+SELECT EXISTS (
+    SELECT 1 FROM revoked_tokens WHERE jti = $1::varchar(64)
+)::bool
+`
+
+func (q *Queries) IsTokenRevoked(ctx context.Context, jti string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isTokenRevoked, jti)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const revokeToken = `-- name: RevokeToken :exec
+WITH purged AS (
+    DELETE FROM revoked_tokens WHERE expires_at < NOW()
+)
+INSERT INTO revoked_tokens (jti, user_id, expires_at)
+VALUES (
+    $1::varchar(64),
+    $2::int,
+    $3::timestamptz
+)
+ON CONFLICT (jti) DO NOTHING
+`
+
+type RevokeTokenParams struct {
+	Jti       string
+	UserID    int32
+	ExpiresAt time.Time
+}
+
+func (q *Queries) RevokeToken(ctx context.Context, arg RevokeTokenParams) error {
+	_, err := q.db.ExecContext(ctx, revokeToken, arg.Jti, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
 const updatePassword = `-- name: UpdatePassword :one
 WITH updated AS (
     UPDATE users
