@@ -103,10 +103,11 @@ logged AS (
         $6::varchar(45),
         actor.name,
         actor.email
-    FROM created
+        FROM created
     LEFT JOIN assigned ON assigned.role_id = created.id
     LEFT JOIN users actor ON actor.id = $5::int
-    GROUP BY created.id, actor.name, actor.email
+    GROUP BY created.id, created.code, created.name, created.description,
+             actor.name, actor.email
     RETURNING id
 )
 SELECT created.name, created.id, created.code, created.description, created.is_active, created.created_at, created.updated_at
