@@ -380,7 +380,8 @@ paths:
       summary: Membuat akun pengguna
       description: |
         Hanya Super Admin yang dapat menggunakan endpoint ini.
-        partner_id wajib dikirim oleh Super Admin.
+        partner_id bersifat opsional. Jika dikirim, nilainya harus integer minimal 1.
+        Jika tidak dikirim atau bernilai null, akun disimpan dengan partner_id NULL.
         Role dan division harus merujuk pada data global yang aktif.
         Kode role partner tidak dapat dibuat melalui endpoint akun biasa;
         pembuatan akun awal Partner Admin dari M3 belum menjadi endpoint API pada versi ini.
@@ -433,14 +434,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationErrorResponse'
               examples:
-                missingPartner:
+                invalidPartner:
                   value:
                     success: false
                     error:
                       code: VALIDATION_ERROR
                       message: Data yang dikirim tidak valid
                       fields:
-                        partner_id: Isian ini wajib diisi
+                        partner_id: Nilai tidak valid
                 invalidRole:
                   value:
                     success: false
@@ -621,7 +622,7 @@ paths:
       tags: [Roles]
       summary: Mendapatkan daftar role global
       description: |
-        Hanya Super Admin. Endpoint mengembalikan seluruh role global.
+        Hanya Super Admin. Endpoint mengembalikan role dengan partner_id NULL.
         Filter yang tersedia adalah is_active.
       operationId: listRoles
       security:
@@ -649,7 +650,7 @@ paths:
       tags: [Roles]
       summary: Membuat role global
       description: |
-        Hanya Super Admin. Role dibuat sebagai role global yang berlaku untuk semua partner.
+        Hanya Super Admin. Role dibuat sebagai role global (partner_id NULL).
         permission_codes berisi kode dari katalog permission yang sudah ada.
         Kode role sistem tertentu dicadangkan dan tidak dapat dibuat ulang.
       operationId: createRole
@@ -851,7 +852,7 @@ paths:
       tags: [Divisions]
       summary: Mendapatkan daftar division global
       description: |
-        Hanya Super Admin. Endpoint mengembalikan seluruh division global.
+        Hanya Super Admin. Endpoint mengembalikan division dengan partner_id NULL.
         Filter yang tersedia adalah is_active.
       operationId: listDivisions
       security:
@@ -879,7 +880,7 @@ paths:
       tags: [Divisions]
       summary: Membuat division global
       description: |
-        Hanya Super Admin. Division baru dibuat sebagai data global yang berlaku untuk semua partner.
+        Hanya Super Admin. Division baru dibuat sebagai data global (partner_id NULL).
         Kode harus menggunakan huruf kecil, angka, tanda hubung, atau garis bawah.
       operationId: createDivision
       security:
@@ -1239,13 +1240,14 @@ components:
 
     CreateUserRequest:
       type: object
-      required: [partner_id, name, email, password, role, division]
+      required: [name, email, password, role, division]
       properties:
         partner_id:
           type: integer
           format: int32
           minimum: 1
-          description: Wajib untuk pembuatan akun oleh Super Admin.
+          nullable: true
+          description: Opsional. Jika tidak dikirim atau null, akun dibuat dengan partner_id NULL.
         name:
           type: string
           maxLength: 150
@@ -1315,11 +1317,16 @@ components:
 
     RoleResponse:
       type: object
-      required: [id, code, name, description, is_active, created_at]
+      required: [id, partner_id, code, name, description, is_active, created_at]
       properties:
         id:
           type: integer
           format: int32
+        partner_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: NULL untuk role global yang dikelola M1.
         code:
           type: string
         name:
@@ -1433,11 +1440,16 @@ components:
 
     DivisionResponse:
       type: object
-      required: [id, code, name, is_active, created_at]
+      required: [id, partner_id, code, name, is_active, created_at]
       properties:
         id:
           type: integer
           format: int32
+        partner_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: NULL untuk division global yang dikelola M1 pada implementasi saat ini.
         code:
           type: string
         name:
