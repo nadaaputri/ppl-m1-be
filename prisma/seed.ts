@@ -6,6 +6,7 @@ import { PrismaClient } from "../generated/prisma/client";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
+// Peran bawaan platform, dipakai bersama oleh semua partner. code dipakai di token, name untuk tampilan.
 const ROLES = [
   { code: "administrator", name: "Administrator" },
   { code: "manajer", name: "Manajer" },
@@ -15,6 +16,7 @@ const ROLES = [
 
 // Katalog izin sistem. Format code: modul.sumber.aksi (huruf kecil).
 // Kolom module diambil dari segmen pertama code.
+// Izin M2 sampai M5 ditambahkan di sini setelah daftarnya diterima dari tiap kelompok.
 const PERMISSIONS = [
   { code: "m1.users.read", description: "Melihat daftar dan detail akun pengguna" },
   { code: "m1.users.manage", description: "Menambah, mengubah, dan menonaktifkan akun pengguna" },
@@ -43,6 +45,8 @@ const PERMISSIONS = [
 const codesOf = (prefix: string) =>
   PERMISSIONS.filter((p) => p.code.startsWith(prefix)).map((p) => p.code);
 
+// Izin per peran bawaan platform. Kunci = roles.code.
+// Seed ini hanya menambah; izin yang dihapus dari daftar tidak otomatis dicabut dari database.
 const ROLE_GRANTS: Record<string, string[]> = {
   // Admin partner: semua izin M1 + izin M4 sesuai daftar M4
   partner: [
@@ -60,6 +64,7 @@ const ROLE_GRANTS: Record<string, string[]> = {
     "m4.orders.read",
     "m4.reports.read",
   ],
+  // Di daftar M4 kodenya "admin"; di platform ini peran itu adalah "administrator"
   administrator: codesOf("m4."),
   customer: [
     "m4.products.read",
@@ -87,18 +92,17 @@ async function main() {
     throw new Error("Kata sandi admin harus minimal 8 karakter, berisi huruf dan angka, dan tidak sama dengan email");
   }
 
-  // upsert tidak bisa dipakai: unik (partner_id, code) tidak menerima partner_id NULL di klausa where
+  // roles.code unik global, jadi upsert bisa dipakai. Peran yang sudah ada tidak ditimpa.
   for (const role of ROLES) {
-    const exists = await prisma.role.findFirst({
-      where: { code: role.code, partnerId: null },
+    await prisma.role.upsert({
+      where: { code: role.code },
+      update: {},
+      create: role,
     });
-    if (!exists) {
-      await prisma.role.create({ data: { ...role, partnerId: null } });
-    }
   }
 
-  const adminRole = await prisma.role.findFirstOrThrow({
-    where: { code: "administrator", partnerId: null },
+  const adminRole = await prisma.role.findUniqueOrThrow({
+    where: { code: "administrator" },
   });
 
   // cost 10 = bcrypt.DefaultCost di backend Go
@@ -112,11 +116,12 @@ async function main() {
       passwordHash,
       name,
       roleId: adminRole.id,
-      isSuperAdmin: true, 
+      isSuperAdmin: true, // staf platform Araya (partner_id NULL)
       isActive: true,
     },
   });
 
+  // Katalog izin: code adalah PK, jadi upsert aman dijalankan berulang
   for (const p of PERMISSIONS) {
     const mod = p.code.split(".")[0];
     await prisma.permission.upsert({
@@ -126,6 +131,7 @@ async function main() {
     });
   }
 
+  // Pemberian izin ke peran bawaan. Cek dulu semua kode ada di katalog (pengaman salah ketik).
   const known = new Set(PERMISSIONS.map((p) => p.code));
   for (const [roleCode, codes] of Object.entries(ROLE_GRANTS)) {
     for (const c of codes) {
@@ -133,25 +139,14 @@ async function main() {
         throw new Error(`Izin "${c}" untuk peran "${roleCode}" tidak ada di katalog PERMISSIONS`);
       }
     }
-    const role = await prisma.role.findFirstOrThrow({
-      where: { code: roleCode, partnerId: null },
+    const role = await prisma.role.findUniqueOrThrow({
+      where: { code: roleCode },
     });
     await prisma.rolePermission.createMany({
       data: codes.map((c) => ({ roleId: role.id, permissionCode: c })),
       skipDuplicates: true,
     });
   }
-  // Semua izin m1.* diberikan ke peran bawaan "partner" (admin partner)
-  const partnerRole = await prisma.role.findFirstOrThrow({
-    where: { code: "partner", partnerId: null },
-  });
-  await prisma.rolePermission.createMany({
-    data: PERMISSIONS.filter((p) => p.code.startsWith("m1.")).map((p) => ({
-      roleId: partnerRole.id,
-      permissionCode: p.code,
-    })),
-    skipDuplicates: true,
-  });
 
   console.log("Seeder selesai: role, akun admin awal, dan katalog izin siap.");
 }
