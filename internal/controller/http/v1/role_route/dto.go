@@ -17,7 +17,6 @@ type createRequest struct {
 
 type roleResponse struct {
 	ID          int32     `json:"id"`
-	PartnerID   *int32    `json:"partner_id"`
 	Code        string    `json:"code"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description"`
@@ -53,8 +52,9 @@ func extraFieldErrors(req createRequest) map[string]string {
 
 func toRoleResponse(r role_usecase.Role) roleResponse {
 	return roleResponse{
-		ID: r.ID, PartnerID: r.PartnerID, Code: r.Code, Name: r.Name,
-		Description: r.Description, IsActive: r.IsActive, CreatedAt: r.CreatedAt.In(utils.WIB),
+		ID: r.ID, Code: r.Code, Name: r.Name,
+		Description: r.Description, IsActive: r.IsActive,
+		CreatedAt: r.CreatedAt.In(utils.WIB),
 	}
 }
 

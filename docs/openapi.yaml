@@ -621,7 +621,7 @@ paths:
       tags: [Roles]
       summary: Mendapatkan daftar role global
       description: |
-        Hanya Super Admin. Endpoint mengembalikan role dengan partner_id NULL.
+        Hanya Super Admin. Endpoint mengembalikan seluruh role global.
         Filter yang tersedia adalah is_active.
       operationId: listRoles
       security:
@@ -649,7 +649,7 @@ paths:
       tags: [Roles]
       summary: Membuat role global
       description: |
-        Hanya Super Admin. Role dibuat sebagai role global (partner_id NULL).
+        Hanya Super Admin. Role dibuat sebagai role global yang berlaku untuk semua partner.
         permission_codes berisi kode dari katalog permission yang sudah ada.
         Kode role sistem tertentu dicadangkan dan tidak dapat dibuat ulang.
       operationId: createRole
@@ -851,7 +851,7 @@ paths:
       tags: [Divisions]
       summary: Mendapatkan daftar division global
       description: |
-        Hanya Super Admin. Endpoint mengembalikan division dengan partner_id NULL.
+        Hanya Super Admin. Endpoint mengembalikan seluruh division global.
         Filter yang tersedia adalah is_active.
       operationId: listDivisions
       security:
@@ -879,7 +879,7 @@ paths:
       tags: [Divisions]
       summary: Membuat division global
       description: |
-        Hanya Super Admin. Division baru dibuat sebagai data global (partner_id NULL).
+        Hanya Super Admin. Division baru dibuat sebagai data global yang berlaku untuk semua partner.
         Kode harus menggunakan huruf kecil, angka, tanda hubung, atau garis bawah.
       operationId: createDivision
       security:
@@ -1315,16 +1315,11 @@ components:
 
     RoleResponse:
       type: object
-      required: [id, partner_id, code, name, description, is_active, created_at]
+      required: [id, code, name, description, is_active, created_at]
       properties:
         id:
           type: integer
           format: int32
-        partner_id:
-          type: integer
-          format: int32
-          nullable: true
-          description: NULL untuk role global yang dikelola M1.
         code:
           type: string
         name:
@@ -1438,16 +1433,11 @@ components:
 
     DivisionResponse:
       type: object
-      required: [id, partner_id, code, name, is_active, created_at]
+      required: [id, code, name, is_active, created_at]
       properties:
         id:
           type: integer
           format: int32
-        partner_id:
-          type: integer
-          format: int32
-          nullable: true
-          description: NULL untuk division global yang dikelola M1 pada implementasi saat ini.
         code:
           type: string
         name:

@@ -34,7 +34,6 @@ type roleStore interface {
 
 type Role struct {
 	ID          int32
-	PartnerID   *int32
 	Code        string
 	Name        string
 	Description *string

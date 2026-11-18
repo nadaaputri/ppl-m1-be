@@ -28,12 +28,8 @@ func (u *Usecase) List(ctx context.Context, in ListInput) (ListResult, error) {
 }
 
 func toDivision(d sqlc.Division) Division {
-	var partnerID *int32
-	if d.PartnerID.Valid {
-		partnerID = &d.PartnerID.Int32
-	}
 	return Division{
-		ID: d.ID, PartnerID: partnerID, Code: d.Code, Name: d.Name,
+		ID: d.ID, Code: d.Code, Name: d.Name,
 		IsActive: d.IsActive, CreatedAt: d.CreatedAt,
 	}
 }

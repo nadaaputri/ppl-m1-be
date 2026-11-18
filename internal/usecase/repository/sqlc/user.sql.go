@@ -279,8 +279,7 @@ func (q *Queries) GetAccountForStatus(ctx context.Context, arg GetAccountForStat
 const getGlobalDivisionIDByCode = `-- name: GetGlobalDivisionIDByCode :one
 SELECT id
 FROM divisions
-WHERE partner_id IS NULL
-  AND code = $1::text
+WHERE code = $1::text
   AND is_active
 `
 
@@ -294,8 +293,7 @@ func (q *Queries) GetGlobalDivisionIDByCode(ctx context.Context, code string) (i
 const getGlobalRoleIDByCode = `-- name: GetGlobalRoleIDByCode :one
 SELECT id
 FROM roles
-WHERE partner_id IS NULL
-  AND code = $1::text
+WHERE code = $1::text
   AND is_active
 `
 
@@ -309,8 +307,7 @@ func (q *Queries) GetGlobalRoleIDByCode(ctx context.Context, code string) (int32
 const getRoleIDByName = `-- name: GetRoleIDByName :one
 SELECT id
 FROM roles
-WHERE partner_id IS NULL
-  AND LOWER(name) = LOWER($1::text)
+WHERE LOWER(name) = LOWER($1::text)
 `
 
 func (q *Queries) GetRoleIDByName(ctx context.Context, roleName string) (int32, error) {

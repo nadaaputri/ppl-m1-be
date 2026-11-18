@@ -1,8 +1,7 @@
 -- name: GetRoleIDByName :one
 SELECT id
 FROM roles
-WHERE partner_id IS NULL
-  AND LOWER(name) = LOWER(sqlc.arg(role_name)::text);
+WHERE LOWER(name) = LOWER(sqlc.arg(role_name)::text);
 
 -- name: CreateUser :one
 INSERT INTO users (email, password_hash, name, role_id)
@@ -12,15 +11,13 @@ RETURNING id, email, name;
 -- name: GetGlobalRoleIDByCode :one
 SELECT id
 FROM roles
-WHERE partner_id IS NULL
-  AND code = sqlc.arg(code)::text
+WHERE code = sqlc.arg(code)::text
   AND is_active;
 
 -- name: GetGlobalDivisionIDByCode :one
 SELECT id
 FROM divisions
-WHERE partner_id IS NULL
-  AND code = sqlc.arg(code)::text
+WHERE code = sqlc.arg(code)::text
   AND is_active;
   
 -- name: CreateAccount :one

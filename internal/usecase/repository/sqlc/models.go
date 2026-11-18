@@ -32,7 +32,6 @@ type Division struct {
 	CreatedAt time.Time
 	ID        int32
 	Code      string
-	PartnerID sql.NullInt32
 	UpdatedAt time.Time
 }
 
@@ -61,7 +60,6 @@ type Role struct {
 	Code        string
 	Description sql.NullString
 	IsActive    bool
-	PartnerID   sql.NullInt32
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

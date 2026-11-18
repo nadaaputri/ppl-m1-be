@@ -29,9 +29,6 @@ func (u *Usecase) List(ctx context.Context, in ListInput) (ListResult, error) {
 
 func toRole(r sqlc.Role) Role {
 	out := Role{ID: r.ID, Code: r.Code, Name: r.Name, IsActive: r.IsActive, CreatedAt: r.CreatedAt}
-	if r.PartnerID.Valid {
-		out.PartnerID = &r.PartnerID.Int32
-	}
 	if r.Description.Valid {
 		out.Description = &r.Description.String
 	}

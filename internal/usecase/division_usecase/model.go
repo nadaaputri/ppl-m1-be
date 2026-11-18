@@ -19,7 +19,6 @@ type divisionStore interface {
 
 type Division struct {
 	ID        int32
-	PartnerID *int32
 	Code      string
 	Name      string
 	IsActive  bool

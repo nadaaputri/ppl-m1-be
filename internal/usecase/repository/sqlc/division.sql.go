@@ -14,8 +14,7 @@ import (
 const countDivisions = `-- name: CountDivisions :one
 SELECT COUNT(*)
 FROM divisions
-WHERE partner_id IS NULL
-  AND ($1::bool IS NULL
+WHERE ($1::bool IS NULL
        OR is_active = $1::bool)
 `
 
@@ -28,13 +27,12 @@ func (q *Queries) CountDivisions(ctx context.Context, isActive sql.NullBool) (in
 
 const createDivision = `-- name: CreateDivision :one
 WITH created AS (
-    INSERT INTO divisions (partner_id, code, name)
+    INSERT INTO divisions (code, name)
     VALUES (
-        NULL,
         $1::varchar(50),
         $2::varchar(100)
     )
-    RETURNING name, is_active, created_at, id, code, partner_id, updated_at
+    RETURNING name, is_active, created_at, id, code, updated_at
 ),
 logged AS (
     INSERT INTO audit_logs (
@@ -59,7 +57,7 @@ logged AS (
     LEFT JOIN users actor ON actor.id = $3::int
     RETURNING id
 )
-SELECT created.name, created.is_active, created.created_at, created.id, created.code, created.partner_id, created.updated_at
+SELECT created.name, created.is_active, created.created_at, created.id, created.code, created.updated_at
 FROM created
 CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
@@ -77,7 +75,6 @@ type CreateDivisionRow struct {
 	CreatedAt time.Time
 	ID        int32
 	Code      string
-	PartnerID sql.NullInt32
 	UpdatedAt time.Time
 }
 
@@ -95,17 +92,15 @@ func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) 
 		&i.CreatedAt,
 		&i.ID,
 		&i.Code,
-		&i.PartnerID,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const listDivisions = `-- name: ListDivisions :many
-SELECT name, is_active, created_at, id, code, partner_id, updated_at
+SELECT name, is_active, created_at, id, code, updated_at
 FROM divisions
-WHERE partner_id IS NULL
-  AND ($1::bool IS NULL
+WHERE ($1::bool IS NULL
        OR is_active = $1::bool)
 ORDER BY id
 LIMIT $3::int
@@ -133,7 +128,6 @@ func (q *Queries) ListDivisions(ctx context.Context, arg ListDivisionsParams) ([
 			&i.CreatedAt,
 			&i.ID,
 			&i.Code,
-			&i.PartnerID,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
