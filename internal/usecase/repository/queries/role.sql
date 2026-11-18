@@ -61,10 +61,11 @@ logged AS (
         sqlc.narg(ip_address)::varchar(45),
         actor.name,
         actor.email
-    FROM created
+        FROM created
     LEFT JOIN assigned ON assigned.role_id = created.id
     LEFT JOIN users actor ON actor.id = sqlc.arg(actor_id)::int
-    GROUP BY created.id, actor.name, actor.email
+    GROUP BY created.id, created.code, created.name, created.description,
+             actor.name, actor.email
     RETURNING id
 )
 SELECT created.*
