@@ -20,7 +20,6 @@ type createRequest struct {
 
 type divisionResponse struct {
 	ID        int32     `json:"id"`
-	PartnerID *int32    `json:"partner_id"`
 	Code      string    `json:"code"`
 	Name      string    `json:"name"`
 	IsActive  bool      `json:"is_active"`
@@ -40,7 +39,7 @@ func extraFieldErrors(req createRequest) map[string]string {
 
 func toDivisionResponse(d division_usecase.Division) divisionResponse {
 	return divisionResponse{
-		ID: d.ID, PartnerID: d.PartnerID, Code: d.Code, Name: d.Name,
+		ID: d.ID, Code: d.Code, Name: d.Name,
 		IsActive: d.IsActive, CreatedAt: d.CreatedAt.In(wib),
 	}
 }

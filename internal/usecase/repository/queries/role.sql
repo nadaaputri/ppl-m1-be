@@ -1,15 +1,13 @@
 -- name: CountRoles :one
 SELECT COUNT(*)
 FROM roles
-WHERE partner_id IS NULL
-  AND (sqlc.narg(is_active)::bool IS NULL
+WHERE (sqlc.narg(is_active)::bool IS NULL
        OR is_active = sqlc.narg(is_active)::bool);
 
 -- name: ListRoles :many
 SELECT *
 FROM roles
-WHERE partner_id IS NULL
-  AND (sqlc.narg(is_active)::bool IS NULL
+WHERE (sqlc.narg(is_active)::bool IS NULL
        OR is_active = sqlc.narg(is_active)::bool)
 ORDER BY id
 LIMIT sqlc.arg(page_limit)::int
@@ -17,11 +15,8 @@ OFFSET sqlc.arg(page_offset)::int;
 
 -- name: CreateRole :one
 WITH created AS (
-    INSERT INTO roles (
-        partner_id, code, name, description
-    )
+    INSERT INTO roles (code, name, description)
     VALUES (
-        NULL,
         sqlc.arg(code)::varchar(50),
         sqlc.arg(name)::varchar(100),
         sqlc.narg(description)::text
@@ -98,10 +93,7 @@ WHERE code = ANY(
 );
 
 -- name: GetGlobalRoleByID :one
-SELECT *
-FROM roles
-WHERE id = sqlc.arg(id)::int
-  AND partner_id IS NULL;
+SELECT * FROM roles WHERE id = sqlc.arg(id)::int;
 
 -- name: GetRolePermissionCodes :many
 SELECT rp.permission_code
@@ -116,7 +108,6 @@ WITH target_role AS (
     SELECT id
     FROM roles
     WHERE id = sqlc.arg(role_id)::int
-      AND partner_id IS NULL
 ),
 old_permissions AS (
     SELECT COALESCE(

@@ -395,10 +395,12 @@ Berdasarkan Prisma schema dan migration, entitas utama M1 mencakup:
                                       role, division, partner, unit
                                       usaha, dan status akun.
 
-  `roles`                             Master role global atau role dengan
-                                      scope sesuai struktur database.
+  `roles`                             Master role global, berlaku untuk
+                                      semua partner (tanpa `partner_id`).
 
-  `divisions`                         Master division.
+  `divisions`                         Master division global, berlaku
+                                      untuk semua partner (tanpa
+                                      `partner_id`).
 
   `permissions`                       Katalog permission.
 

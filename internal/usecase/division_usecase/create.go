@@ -27,7 +27,6 @@ func (u *Usecase) Create(ctx context.Context, in CreateInput) (Division, error) 
 func toCreatedDivision(d sqlc.CreateDivisionRow) Division {
 	return Division{
 		ID:        d.ID,
-		PartnerID: utils.Int32Ptr(d.PartnerID),
 		Code:      d.Code,
 		Name:      d.Name,
 		IsActive:  d.IsActive,

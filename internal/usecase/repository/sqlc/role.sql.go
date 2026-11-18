@@ -44,8 +44,7 @@ func (q *Queries) CountPermissionsByCodes(ctx context.Context, permissionCodes s
 const countRoles = `-- name: CountRoles :one
 SELECT COUNT(*)
 FROM roles
-WHERE partner_id IS NULL
-  AND ($1::bool IS NULL
+WHERE ($1::bool IS NULL
        OR is_active = $1::bool)
 `
 
@@ -58,16 +57,13 @@ func (q *Queries) CountRoles(ctx context.Context, isActive sql.NullBool) (int64,
 
 const createRole = `-- name: CreateRole :one
 WITH created AS (
-    INSERT INTO roles (
-        partner_id, code, name, description
-    )
+    INSERT INTO roles (code, name, description)
     VALUES (
-        NULL,
         $1::varchar(50),
         $2::varchar(100),
         $3::text
     )
-    RETURNING name, id, code, description, is_active, partner_id, created_at, updated_at
+    RETURNING name, id, code, description, is_active, created_at, updated_at
 ),
 assigned AS (
     INSERT INTO role_permissions (role_id, permission_code)
@@ -113,7 +109,7 @@ logged AS (
     GROUP BY created.id, actor.name, actor.email
     RETURNING id
 )
-SELECT created.name, created.id, created.code, created.description, created.is_active, created.partner_id, created.created_at, created.updated_at
+SELECT created.name, created.id, created.code, created.description, created.is_active, created.created_at, created.updated_at
 FROM created
 CROSS JOIN (SELECT COUNT(*) FROM logged) AS audit_saved
 `
@@ -133,7 +129,6 @@ type CreateRoleRow struct {
 	Code        string
 	Description sql.NullString
 	IsActive    bool
-	PartnerID   sql.NullInt32
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -154,7 +149,6 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (CreateR
 		&i.Code,
 		&i.Description,
 		&i.IsActive,
-		&i.PartnerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -162,10 +156,7 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (CreateR
 }
 
 const getGlobalRoleByID = `-- name: GetGlobalRoleByID :one
-SELECT name, id, code, description, is_active, partner_id, created_at, updated_at
-FROM roles
-WHERE id = $1::int
-  AND partner_id IS NULL
+SELECT name, id, code, description, is_active, created_at, updated_at FROM roles WHERE id = $1::int
 `
 
 func (q *Queries) GetGlobalRoleByID(ctx context.Context, id int32) (Role, error) {
@@ -177,7 +168,6 @@ func (q *Queries) GetGlobalRoleByID(ctx context.Context, id int32) (Role, error)
 		&i.Code,
 		&i.Description,
 		&i.IsActive,
-		&i.PartnerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -253,10 +243,9 @@ func (q *Queries) ListPermissions(ctx context.Context, arg ListPermissionsParams
 }
 
 const listRoles = `-- name: ListRoles :many
-SELECT name, id, code, description, is_active, partner_id, created_at, updated_at
+SELECT name, id, code, description, is_active, created_at, updated_at
 FROM roles
-WHERE partner_id IS NULL
-  AND ($1::bool IS NULL
+WHERE ($1::bool IS NULL
        OR is_active = $1::bool)
 ORDER BY id
 LIMIT $3::int
@@ -284,7 +273,6 @@ func (q *Queries) ListRoles(ctx context.Context, arg ListRolesParams) ([]Role, e
 			&i.Code,
 			&i.Description,
 			&i.IsActive,
-			&i.PartnerID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -306,7 +294,6 @@ WITH target_role AS (
     SELECT id
     FROM roles
     WHERE id = $3::int
-      AND partner_id IS NULL
 ),
 old_permissions AS (
     SELECT COALESCE(
