@@ -17,6 +17,7 @@ const PARTNER_A = 9001;
 const PARTNER_B = 9002;
 const DUMMY_PARTNERS = [PARTNER_A, PARTNER_B];
 const DUMMY_DOMAIN = "@dummy.test";
+const DUMMY_DIVISION_PREFIX = "dummy_";
 
 function dbHost(): string {
   try {
@@ -26,14 +27,13 @@ function dbHost(): string {
   }
 }
 
-async function ensureDivision(partnerId: number, code: string, name: string) {
-  const found = await prisma.division.findFirst({ where: { partnerId, code } });
-  return found ?? prisma.division.create({ data: { partnerId, code, name } });
-}
-
-async function ensureRole(partnerId: number, code: string, name: string) {
-  const found = await prisma.role.findFirst({ where: { partnerId, code } });
-  return found ?? prisma.role.create({ data: { partnerId, code, name } });
+// divisions.code unik global, jadi upsert aman dijalankan berulang
+async function ensureDivision(code: string, name: string) {
+  return prisma.division.upsert({
+    where: { code },
+    update: {},
+    create: { code, name },
+  });
 }
 
 type DummyUser = {
@@ -78,18 +78,13 @@ async function seed() {
   // cost 10 = bcrypt.DefaultCost di backend Go
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const partnerRole = await prisma.role.findFirstOrThrow({
-    where: { code: "partner", partnerId: null },
-  });
+  // Peran bawaan platform (dibuat oleh seed.ts)
+  const partnerRole = await prisma.role.findUniqueOrThrow({ where: { code: "partner" } });
+  const managerRole = await prisma.role.findUniqueOrThrow({ where: { code: "manajer" } });
 
-  // Divisi: kode yang sama (penjualan) di dua partner sengaja dibuat,
-  // untuk membuktikan unik per (partner_id, code).
-  const penjualanA = await ensureDivision(PARTNER_A, "penjualan", "Penjualan");
-  const keuanganA = await ensureDivision(PARTNER_A, "keuangan", "Keuangan");
-  const penjualanB = await ensureDivision(PARTNER_B, "penjualan", "Penjualan");
-
-  // Peran buatan partner A
-  const kasirA = await ensureRole(PARTNER_A, "kasir", "Kasir");
+  // Divisi uji (global)
+  const penjualan = await ensureDivision(`${DUMMY_DIVISION_PREFIX}penjualan`, "Penjualan (dummy)");
+  const keuangan = await ensureDivision(`${DUMMY_DIVISION_PREFIX}keuangan`, "Keuangan (dummy)");
 
   // Admin partner (peran bawaan "partner", tanpa divisi)
   const adminA = await ensureUser({
@@ -107,34 +102,34 @@ async function seed() {
     roleId: partnerRole.id,
   });
 
-  // Akun bawahan partner A (peran kasir + divisi), dibuat oleh admin partner A
+  // Akun bawahan partner A (peran manajer + divisi), dibuat oleh admin partner A
   await ensureUser({
-    email: `kasir1.partner1${DUMMY_DOMAIN}`,
-    name: "Kasir 1 Partner 1 (dummy)",
+    email: `manajer1.partner1${DUMMY_DOMAIN}`,
+    name: "Manajer 1 Partner 1 (dummy)",
     passwordHash,
     partnerId: PARTNER_A,
-    roleId: kasirA.id,
-    divisionId: penjualanA.id,
+    roleId: managerRole.id,
+    divisionId: penjualan.id,
     createdById: adminA.id,
   });
   await ensureUser({
-    email: `kasir2.partner1${DUMMY_DOMAIN}`,
-    name: "Kasir 2 Partner 1 (dummy)",
+    email: `manajer2.partner1${DUMMY_DOMAIN}`,
+    name: "Manajer 2 Partner 1 (dummy)",
     passwordHash,
     partnerId: PARTNER_A,
-    roleId: kasirA.id,
-    divisionId: keuanganA.id,
+    roleId: managerRole.id,
+    divisionId: keuangan.id,
     createdById: adminA.id,
   });
 
-  // Akun nonaktif (AC-11: akun nonaktif tidak bisa login)
+  // Akun nonaktif (AC-2: akun nonaktif tidak bisa login, datanya tetap tersimpan)
   await ensureUser({
     email: `nonaktif.partner1${DUMMY_DOMAIN}`,
     name: "Akun Nonaktif Partner 1 (dummy)",
     passwordHash,
     partnerId: PARTNER_A,
-    roleId: kasirA.id,
-    divisionId: penjualanA.id,
+    roleId: managerRole.id,
+    divisionId: penjualan.id,
     createdById: adminA.id,
     isActive: false,
   });
@@ -143,17 +138,16 @@ async function seed() {
   console.table([
     { email: `admin.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "partner", divisi: "-", aktif: true },
     { email: `admin.partner2${DUMMY_DOMAIN}`, partner_id: PARTNER_B, role: "partner", divisi: "-", aktif: true },
-    { email: `kasir1.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "kasir", divisi: "penjualan", aktif: true },
-    { email: `kasir2.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "kasir", divisi: "keuangan", aktif: true },
-    { email: `nonaktif.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "kasir", divisi: "penjualan", aktif: false },
+    { email: `manajer1.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "manajer", divisi: penjualan.code, aktif: true },
+    { email: `manajer2.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "manajer", divisi: keuangan.code, aktif: true },
+    { email: `nonaktif.partner1${DUMMY_DOMAIN}`, partner_id: PARTNER_A, role: "manajer", divisi: penjualan.code, aktif: false },
   ]);
-  console.log(`Divisi partner ${PARTNER_B} (untuk uji "divisi milik partner lain ditolak"): id ${penjualanB.id}`);
 }
 
 async function clean() {
-  // Urutan: log -> akun -> divisi -> peran (FK akun ke peran/divisi memakai RESTRICT).
-  // role_permissions dan division_permissions ikut terhapus lewat CASCADE.
-  const [logs, users, divisions, roles] = await prisma.$transaction([
+  // Urutan: log -> akun -> divisi dummy (FK akun ke divisi memakai RESTRICT).
+  // Peran tidak dihapus karena peran bawaan platform dipakai semua partner.
+  const [logs, users, divisions] = await prisma.$transaction([
     prisma.auditLog.deleteMany({
       where: {
         OR: [
@@ -170,12 +164,13 @@ async function clean() {
         ],
       },
     }),
-    prisma.division.deleteMany({ where: { partnerId: { in: DUMMY_PARTNERS } } }),
-    prisma.role.deleteMany({ where: { partnerId: { in: DUMMY_PARTNERS } } }),
+    prisma.division.deleteMany({
+      where: { code: { startsWith: DUMMY_DIVISION_PREFIX } },
+    }),
   ]);
 
   console.log(
-    `Dibersihkan: ${logs.count} log, ${users.count} akun, ${divisions.count} divisi, ${roles.count} peran.`,
+    `Dibersihkan: ${logs.count} log, ${users.count} akun, ${divisions.count} divisi.`,
   );
 }
 
